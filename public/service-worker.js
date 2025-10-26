@@ -1,4 +1,4 @@
-const CACHE_NAME = "mandaditos-cache-v1";
+const CACHE_NAME = "mandaditos-cache-v2";
 
 // Archivos base que queremos cachear para que la app abra offline.
 // Incluimos el index y los assets que Vite genera.
