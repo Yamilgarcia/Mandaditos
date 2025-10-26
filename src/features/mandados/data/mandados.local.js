@@ -5,12 +5,16 @@ export function getMandados() {
   return stored ? JSON.parse(stored) : [];
 }
 
+export function setMandados(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+// guardar uno nuevo (con id local único)
 export function saveMandado(mandado) {
   const all = getMandados();
-  // le damos un id local simple
   const withId = {
     ...mandado,
-    id: crypto.randomUUID(), // identificador único
+    id: crypto.randomUUID(),
   };
   all.push(withId);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));

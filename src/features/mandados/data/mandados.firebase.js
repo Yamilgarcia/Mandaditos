@@ -1,15 +1,33 @@
 import { db } from "../../../firebase.config";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  getDocs,
+} from "firebase/firestore";
 
 const COLLECTION_NAME = "mandados";
 
+// Guardar un mandado en Firestore
 export async function saveMandadoRemote(mandado) {
-  // mandado es el objeto con {fecha, hora, clienteNombre, descripcion, monto, metodoPago, notas, pagado}
   const dataToSave = {
     ...mandado,
-    createdAt: serverTimestamp(), // marca cuándo se guardó en la nube
+    createdAt: serverTimestamp(),
   };
 
   const docRef = await addDoc(collection(db, COLLECTION_NAME), dataToSave);
-  return docRef.id; // por si luego queremos mostrarle su ID
+  return docRef.id;
+}
+
+// Leer todos los mandados desde Firestore
+export async function getMandadosRemote() {
+  const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+  const rows = [];
+  snapshot.forEach((doc) => {
+    rows.push({
+      ...doc.data(),
+      __docId: doc.id, // id de Firestore por si lo necesitamos luego
+    });
+  });
+  return rows;
 }
