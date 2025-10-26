@@ -4,10 +4,7 @@ export default function SideMenu({ onClose }) {
   return (
     <>
       {/* fondo oscuro */}
-      <div
-        className="fixed inset-0 bg-black/40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
 
       {/* panel lateral */}
       <aside className="fixed top-0 left-0 h-full w-64 bg-white shadow-xl p-4 flex flex-col">
@@ -46,21 +43,28 @@ export default function SideMenu({ onClose }) {
             📜 Historial / Pendientes
           </Link>
 
+          <Link
+            to="/pendientes"
+            onClick={onClose}
+            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+          >
+            💸 Pendientes de Pago
+          </Link>
 
-<Link
-    to="/pendientes"
-    onClick={onClose}
-    className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
-  >
-    💸 Pendientes de Pago
-  </Link>
-  
           <Link
             to="/gastos"
             onClick={onClose}
             className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
           >
             💵 Gastos personales
+          </Link>
+
+          <Link
+            to="/GastosList"
+            onClick={onClose}
+            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+          >
+            💵 Listado de gastos
           </Link>
         </nav>
 

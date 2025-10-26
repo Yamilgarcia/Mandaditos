@@ -22,7 +22,7 @@ export function useGastos() {
 
   // ---- subir nuevos que no han sido subidos ----
   async function pushNewPending(localList) {
-    const toUpload = localList.filter(g => g.needsUpload);
+    const toUpload = localList.filter((g) => g.needsUpload);
 
     for (const gasto of toUpload) {
       try {
@@ -38,10 +38,10 @@ export function useGastos() {
     return localList;
   }
 
-  // ---- subir updates pendientes (ej si en el futuro editamos un gasto) ----
+  // ---- subir updates pendientes (ej si editamos un gasto) ----
   async function pushUpdates(localList) {
     const toUpdate = localList.filter(
-      g => g.remoteId && g.needsUpdate
+      (g) => g.remoteId && g.needsUpdate
     );
 
     for (const gasto of toUpdate) {
@@ -63,21 +63,19 @@ export function useGastos() {
     try {
       const remoteList = await getGastosRemote();
 
-      // Fusion logic:
-      // Metemos todo lo remoto que no esté ya en local (mismo remoteId).
       let merged = [...localList];
 
       for (const remoteItem of remoteList) {
         const already = merged.find(
-          g => g.remoteId === remoteItem.remoteId
+          (g) => g.remoteId === remoteItem.remoteId
         );
         if (!already) {
           merged.push(remoteItem);
         }
       }
 
-      setGastos(merged);       // guardar en localStorage
-      setGastosState(merged);  // refrescar React state
+      setGastos(merged);
+      setGastosState(merged);
 
       return merged;
     } catch (err) {
@@ -99,11 +97,9 @@ export function useGastos() {
     }
   }
 
-  // correr sync al montar el hook
   useEffect(() => {
     fullSync();
 
-    // opcional: cuando el navegador recupere internet, volver a sync
     function handleOnline() {
       fullSync();
     }
@@ -111,7 +107,11 @@ export function useGastos() {
     return () => window.removeEventListener("online", handleOnline);
   }, []);
 
-  // Crear gasto (gasolina, comida, etc.)
+  // =======================
+  //  API pública
+  // =======================
+
+  // Crear gasto
   function createGasto({ categoria, monto, nota }) {
     const nuevo = {
       fecha: getTodayStr(),
@@ -121,22 +121,44 @@ export function useGastos() {
       nota,
     };
 
-    // Guardar local SIEMPRE (offline first)
     saveGastoLocal(nuevo);
 
-    // actualizar estado con lo más reciente
     const after = getGastos();
     setGastosState(after);
 
-    // intentar sincronizar en background
     fullSync();
   }
 
-  // (Futuro) editar gasto localmente
+  // Editar gasto
   function editGasto(localId, changes) {
-    const after = updateGastoLocalById(localId, changes);
+    const after = updateGastoLocalById(localId, {
+      ...changes,
+      needsUpdate: true,
+    });
     setGastosState(after);
     fullSync();
+  }
+
+  // Eliminar gasto
+  async function deleteGasto(localId) {
+    let all = getGastos();
+    const target = all.find((g) => g.id === localId);
+
+    // si existe remoto, intentamos borrar en Firestore
+    if (target?.remoteId) {
+      try {
+        const { doc, deleteDoc } = await import("firebase/firestore");
+        const { db } = await import("../../../firebase.config");
+        await deleteDoc(doc(db, "gastos", target.remoteId));
+      } catch (err) {
+        console.warn("No se pudo eliminar remoto, se elimina local igual:", err);
+      }
+    }
+
+    // borrar local siempre
+    all = all.filter((g) => g.id !== localId);
+    setGastos(all);
+    setGastosState(all);
   }
 
   return {
@@ -144,5 +166,7 @@ export function useGastos() {
     syncing,
     createGasto,
     editGasto,
+    deleteGasto,
+    fullSync,
   };
 }

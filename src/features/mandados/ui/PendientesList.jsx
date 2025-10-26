@@ -1,8 +1,11 @@
-import { useMandados } from "../logic/useMandados";
 import { useState } from "react";
+import { useMandados } from "../logic/useMandados";
+import { useToast } from "../../../components/ToastContext"; // ajustá la ruta si cambia en tu proyecto
 
 export default function PendientesList() {
   const { mandados, markAsPaid } = useMandados();
+  const { showToast } = useToast();
+
   const [seleccionPago, setSeleccionPago] = useState({}); 
   // guarda temporalmente qué método de pago se eligió para cada pendiente
 
@@ -14,6 +17,24 @@ export default function PendientesList() {
         No tenés pagos pendientes 🎉
       </p>
     );
+  }
+
+  async function handleMarkAsPaid(m) {
+    const metodo = seleccionPago[m.id] || "efectivo";
+
+    try {
+      // actualizamos estado local offline-first
+      await markAsPaid(m.id, metodo);
+
+      if (!navigator.onLine) {
+        showToast("📦 Marcado como pagado (offline). Se sincroniza cuando haya internet.", "info");
+      } else {
+        showToast(` Pagado por ${metodo}`, "success");
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("❌ No se pudo marcar como pagado. Probá de nuevo.", "error");
+    }
   }
 
   return (
@@ -55,14 +76,16 @@ export default function PendientesList() {
 
           <button
             className="mt-3 w-full bg-green-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-green-700 active:scale-[.98]"
-            onClick={() => {
-              const metodo = seleccionPago[m.id] || "efectivo";
-              markAsPaid(m.id, metodo);
-              alert("✅ Marcado como pagado");
-            }}
+            onClick={() => handleMarkAsPaid(m)}
           >
             Marcar como Pagado
           </button>
+
+          {!navigator.onLine && (
+            <p className="text-[11px] text-yellow-700 bg-yellow-100 border border-yellow-300 rounded-lg p-2 text-center mt-2">
+              Estás sin internet. Guardamos local y sincronizamos cuando vuelva 📶
+            </p>
+          )}
         </div>
       ))}
     </div>

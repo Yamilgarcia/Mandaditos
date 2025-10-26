@@ -5,6 +5,7 @@ import ResumenPage from "./pages/ResumenPage";
 import HistorialPage from "./pages/HistorialPage";
 import GastosPage from "./pages/GastosPage";
 import PendientesPage from "./pages/PendientesPage";
+import GastosList from "./features/gastos/ui/GastosList";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/historial" element={<HistorialPage />} />
         <Route path="/gastos" element={<GastosPage />} />
         <Route path="/pendientes" element={<PendientesPage />} />
+        <Route path="/GastosList" element={<GastosList />} />
       </Route>
     </Routes>
   );

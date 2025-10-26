@@ -18,11 +18,11 @@ export function useMandados() {
   const [mandados, setMandadosState] = useState(getMandados());
   const [syncing, setSyncing] = useState(false);
 
-  // ------------ helper: subir nuevos pendientes ------------
+  // ==============================
+  // 🔼 Subir mandados nuevos
+  // ==============================
   async function pushNewPending(localList) {
-    // mandados que todavía no tienen remoteId y necesitan subir
-    const toUpload = localList.filter(m => m.needsUpload);
-
+    const toUpload = localList.filter((m) => m.needsUpload);
     for (const item of toUpload) {
       try {
         const remoteId = await uploadNewMandado(item);
@@ -30,19 +30,17 @@ export function useMandados() {
         setMandadosState(afterMark);
         localList = afterMark;
       } catch (err) {
-        console.warn("No se pudo subir un mandado nuevo:", err);
+        console.warn("⚠️ No se pudo subir un mandado nuevo:", err);
       }
     }
-
     return localList;
   }
 
-  // ------------ helper: subir updates pendientes ------------
+  // ==============================
+  // 🔁 Subir actualizaciones
+  // ==============================
   async function pushUpdates(localList) {
-    const toUpdate = localList.filter(
-      m => m.remoteId && m.needsUpdate
-    );
-
+    const toUpdate = localList.filter((m) => m.remoteId && m.needsUpdate);
     for (const item of toUpdate) {
       try {
         await updateRemoteMandado(item.remoteId, item);
@@ -50,91 +48,110 @@ export function useMandados() {
         setMandadosState(afterClear);
         localList = afterClear;
       } catch (err) {
-        console.warn("No se pudo actualizar un mandado remoto:", err);
+        console.warn("⚠️ No se pudo actualizar un mandado remoto:", err);
       }
     }
-
     return localList;
   }
 
-  // ------------ helper: bajar nube y fusionar ------------
+  // ==============================
+  // 🔽 Bajar nube + fusionar
+  // ==============================
   async function pullRemoteAndMerge(localList) {
     try {
       const remoteList = await getMandadosRemote();
-
-      // fusionamos:
-      // - si un remoteId ya existe local, usamos el local (porque puede tener cambios)
-      // - si un remoteId NO existe local, lo agregamos
       let merged = [...localList];
 
       for (const remoteItem of remoteList) {
         const already = merged.find(
-          m => m.remoteId === remoteItem.remoteId
+          (m) => m.remoteId === remoteItem.remoteId
         );
-        if (!already) {
-          merged.push(remoteItem);
-        }
+        if (!already) merged.push(remoteItem);
       }
 
-      // guardamos fusión en localStorage y en estado
       setMandados(merged);
       setMandadosState(merged);
-
       return merged;
     } catch (err) {
-      console.warn("No se pudo bajar de Firestore:", err);
+      console.warn("⚠️ No se pudo bajar de Firestore:", err);
       return localList;
     }
   }
 
-  // ------------ sync total ------------
+  // ==============================
+  // 🔄 Sincronización completa
+  // ==============================
   async function fullSync() {
     setSyncing(true);
     try {
-      let current = getMandados();          // lee lo más reciente local
-      current = await pushNewPending(current); // sube nuevos
-      current = await pushUpdates(current);    // sube updates
-      current = await pullRemoteAndMerge(current); // trae nube y fusiona
+      let current = getMandados();
+      current = await pushNewPending(current);
+      current = await pushUpdates(current);
+      current = await pullRemoteAndMerge(current);
     } finally {
       setSyncing(false);
     }
   }
 
-  // correr sync cuando el hook monta (app inicia)
   useEffect(() => {
     fullSync();
-    // también podríamos volver a sync cuando vuelva el internet,
-    // pero eso sería un paso siguiente con "online/offline events".
   }, []);
 
-  // ------------ API pública del hook ------------
+  // ==============================
+  // 🧩 API Pública
+  // ==============================
 
-  // crear un nuevo mandado
+  // ➕ Crear
   function createMandado(data) {
-    // siempre guardo local (offline first)
     const newItem = saveMandadoLocal({
       ...data,
       pagado: data.pagado ?? (data.metodoPago !== "pendiente"),
     });
-
     const after = getMandados();
     setMandadosState(after);
-
-    // intento sincronizar en background
     fullSync();
   }
 
-  // marcar como pagado
+  // ✅ Marcar pagado
   function markAsPaid(localId, metodoPagoReal = "efectivo") {
     const afterUpdate = updateMandadoLocalById(localId, {
       pagado: true,
       metodoPago: metodoPagoReal,
     });
-
     setMandadosState(afterUpdate);
-
-    // intento sincronizar en background
     fullSync();
+  }
+
+  // ✏️ Editar (offline + online)
+  function updateMandado(localId, updates) {
+    const afterUpdate = updateMandadoLocalById(localId, {
+      ...updates,
+      needsUpdate: true, // se sincroniza luego
+    });
+    setMandadosState(afterUpdate);
+    fullSync();
+  }
+
+  // 🗑 Eliminar (offline + online)
+  async function deleteMandado(localId) {
+    let all = getMandados();
+    const target = all.find((m) => m.id === localId);
+
+    // Si está sincronizado en la nube, eliminamos en Firestore también
+    if (target?.remoteId) {
+      try {
+        const { doc, deleteDoc } = await import("firebase/firestore");
+        const { db } = await import("../../../firebase.config");
+        await deleteDoc(doc(db, "mandados", target.remoteId));
+      } catch (err) {
+        console.warn("⚠️ No se pudo eliminar en Firestore (se elimina localmente):", err);
+      }
+    }
+
+    // eliminar local siempre
+    all = all.filter((m) => m.id !== localId);
+    setMandados(all);
+    setMandadosState(all);
   }
 
   return {
@@ -142,5 +159,8 @@ export function useMandados() {
     syncing,
     createMandado,
     markAsPaid,
+    updateMandado,
+    deleteMandado,
+    fullSync,
   };
 }

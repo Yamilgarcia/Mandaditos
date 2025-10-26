@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import HamburgerButton from "../components/HamburgerButton";
 import SideMenu from "../components/SideMenu";
+import InstallPWAButton from "../components/InstallPWAButton";
 
 export default function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -16,10 +17,9 @@ export default function AppLayout() {
         backgroundRepeat: "no-repeat",
       }}
     >
-      {/* capa semitransparente para que no se pierda el contraste */}
+      {/* oscurito suave para que se lea el contenido encima */}
       <div className="absolute inset-0 bg-black/30 pointer-events-none" />
 
-      {/* CONTENIDO REAL encima del fondo */}
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header fijo */}
         <header className="bg-white shadow flex items-center justify-between px-4 py-3">
@@ -29,6 +29,9 @@ export default function AppLayout() {
               🏍️ Mandaditos
             </span>
           </div>
+
+          {/* acá ponemos el botón de instalar PWA */}
+          <InstallPWAButton />
         </header>
 
         {/* Contenido de cada pantalla */}
@@ -36,7 +39,7 @@ export default function AppLayout() {
           <Outlet />
         </main>
 
-        {/* Menú lateral estilo anterior (solo aparece si menuOpen = true) */}
+        {/* Menú lateral */}
         {menuOpen && (
           <SideMenu onClose={() => setMenuOpen(false)} />
         )}
