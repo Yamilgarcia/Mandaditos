@@ -4,29 +4,57 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
+  updateDoc,
+  doc,
 } from "firebase/firestore";
 
 const COLLECTION_NAME = "mandados";
 
-// Guardar un mandado en Firestore
-export async function saveMandadoRemote(mandado) {
-  const dataToSave = {
-    ...mandado,
+// SUBIR un mandado nuevo a Firestore
+// devuelve el id remoto
+export async function uploadNewMandado(localMandado) {
+  const payload = {
+    ...localMandado,
     createdAt: serverTimestamp(),
   };
 
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), dataToSave);
-  return docRef.id;
+  // cosas internas locales que no quiero guardar tal cual en Firebase:
+  delete payload.id;
+  delete payload.needsUpload;
+  delete payload.needsUpdate;
+  // remoteId tampoco lo subimos, Firestore genera su propio id
+
+  const ref = await addDoc(collection(db, COLLECTION_NAME), payload);
+  return ref.id;
 }
 
-// Leer todos los mandados desde Firestore
+// ACTUALIZAR en Firestore (mandado que ya existe en remoto)
+export async function updateRemoteMandado(remoteId, partialData) {
+  const ref = doc(db, COLLECTION_NAME, remoteId);
+
+  // igual que arriba: no quiero subir campos internos
+  const clean = { ...partialData };
+  delete clean.id;
+  delete clean.remoteId;
+  delete clean.needsUpload;
+  delete clean.needsUpdate;
+
+  await updateDoc(ref, clean);
+}
+
+// DESCARGAR todos los mandados desde Firestore
 export async function getMandadosRemote() {
-  const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+  const snap = await getDocs(collection(db, COLLECTION_NAME));
   const rows = [];
-  snapshot.forEach((doc) => {
+  snap.forEach((docSnap) => {
     rows.push({
-      ...doc.data(),
-      __docId: doc.id, // id de Firestore por si lo necesitamos luego
+      ...docSnap.data(),
+      remoteId: docSnap.id,
+      // si no tenían id local (porque vienen de antes),
+      // me invento uno estable basado en remoteId:
+      id: crypto.randomUUID(),
+      needsUpload: false,
+      needsUpdate: false,
     });
   });
   return rows;

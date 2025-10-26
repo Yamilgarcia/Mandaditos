@@ -31,7 +31,6 @@ export default function GastoForm() {
 
     alert("💸 Gasto guardado");
 
-    // limpiar
     setForm({
       categoria: "gasolina",
       monto: "",
@@ -42,7 +41,7 @@ export default function GastoForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="max-w-md mx-auto bg-white p-6 rounded-2xl shadow-md mt-6 space-y-4"
+      className="max-w-md mx-auto bg-white/90 backdrop-blur-md p-6 rounded-2xl shadow-md mt-6 space-y-4 border border-white/30 text-gray-800"
     >
       <h2 className="text-xl font-bold text-center text-gray-700">
         Registrar Gasto Personal
@@ -85,7 +84,7 @@ export default function GastoForm() {
           name="nota"
           value={form.nota}
           onChange={handleChange}
-          placeholder="Ej: recarga claro / almuerzo / aceite moto"
+          placeholder="Ej: gasolina / almuerzo / aceite moto"
           className="border rounded-lg p-2 w-full h-16"
         />
       </div>
