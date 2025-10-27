@@ -1,6 +1,39 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useMandados } from "../logic/useMandados";
-import { useToast } from "../../../components/ToastContext"; // ajustá la ruta si cambia
+import { useToast } from "../../../components/ToastContext";
+
+function toNum(v) {
+  const n = Number(v);
+  return Number.isNaN(n) ? 0 : n;
+}
+function getTotalCobrar(m) {
+  if (m.totalCobrar !== undefined) return toNum(m.totalCobrar);
+  const legacy = toNum(m.monto);
+  const calc = toNum(m.gastoCompra) + toNum(m.cobroServicio);
+  return calc > 0 ? calc : legacy;
+}
+function getUtilidad(m) {
+  if (m.utilidad !== undefined) return toNum(m.utilidad);
+  const legacy = toNum(m.monto);
+  const fee = toNum(m.cobroServicio);
+  return fee > 0 ? fee : legacy;
+}
+function getHoraOrEmpty(m) {
+  return typeof m.hora === "string" ? m.hora : "";
+}
+function dedupeByOriginId(list) {
+  const map = new Map();
+  for (const m of list) {
+    const key = m.originId || m.remoteId || m.id;
+    const prev = map.get(key);
+    if (!prev) map.set(key, m);
+    else {
+      const score = (x) => (x.syncStatus === "synced" ? 3 : x.remoteId ? 2 : 1);
+      map.set(key, score(m) >= score(prev) ? m : prev);
+    }
+  }
+  return Array.from(map.values());
+}
 
 export default function MandadosList() {
   const { mandados, updateMandado, deleteMandado } = useMandados();
@@ -13,132 +46,175 @@ export default function MandadosList() {
   const [editData, setEditData] = useState({
     clienteNombre: "",
     descripcion: "",
-    monto: "",
     fecha: "",
+    hora: "",
+    gastoCompra: "",
+    cobroServicio: "20",
     metodoPago: "efectivo",
     pagado: true,
+    notas: "",
   });
 
-  // errores del modal
   const [editErrors, setEditErrors] = useState({
     clienteNombre: "",
     descripcion: "",
-    monto: "",
     fecha: "",
+    gastoCompra: "",
+    cobroServicio: "",
     metodoPago: "",
   });
 
-  // modal de confirmación de borrado
-  const [deletingId, setDeletingId] = useState(null);
+  // paginación
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  // filtrar por búsqueda
+  // volver a página 1 cuando cambia búsqueda o pageSize
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  // lista base sin duplicados
+  const baseList = useMemo(() => dedupeByOriginId(mandados || []), [mandados]);
+
+  // filtrar + ordenar
   const mandadosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return mandados;
 
-    return mandados.filter((m) => {
-      const matchFecha = m.fecha?.toString().toLowerCase().includes(q);
-      const matchNombre = m.clienteNombre?.toLowerCase().includes(q);
-      const matchDesc = m.descripcion?.toLowerCase().includes(q);
-      const matchMonto = m.monto?.toString().toLowerCase().includes(q);
-      const matchMetodo = m.metodoPago?.toLowerCase().includes(q);
-      const matchEstado = m.pagado
-        ? "pagado pagado por efectivo pagado por transferencia".includes(q)
-        : "pendiente deuda no pagado".includes(q);
+    const filtrados = !q
+      ? baseList
+      : baseList.filter((m) => {
+          const totalCobrar = getTotalCobrar(m);
+          const utilidad = getUtilidad(m);
+          const hay = [
+            m.fecha?.toString().toLowerCase(),
+            m.hora?.toString().toLowerCase(),
+            m.clienteNombre?.toLowerCase(),
+            m.descripcion?.toLowerCase(),
+            m.metodoPago?.toLowerCase(),
+            (m.pagado ? "pagado" : "pendiente"),
+            totalCobrar.toString(),
+            utilidad.toString(),
+          ].some((field) => field?.includes(q));
+          return hay;
+        });
 
-      return (
-        matchFecha ||
-        matchNombre ||
-        matchDesc ||
-        matchMonto ||
-        matchMetodo ||
-        matchEstado
-      );
+    // ordenar por fecha desc, luego hora desc
+    return filtrados.slice().sort((a, b) => {
+      const fa = a.fecha || "";
+      const fb = b.fecha || "";
+      if (fa < fb) return 1;
+      if (fa > fb) return -1;
+      const ha = getHoraOrEmpty(a);
+      const hb = getHoraOrEmpty(b);
+      if (ha < hb) return 1;
+      if (ha > hb) return -1;
+      return (a.id || "").localeCompare(b.id || "");
     });
-  }, [search, mandados]);
+  }, [search, baseList]);
 
-  // abrir modal de edición con datos actuales
+  const total = mandadosFiltrados.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, total);
+  const visibles = mandadosFiltrados.slice(startIndex, endIndex);
+
+  // abrir modal de edición (mapea registros viejos)
   function handleOpenEdit(m) {
     setEditingId(m.id);
     setEditData({
       clienteNombre: m.clienteNombre || "",
       descripcion: m.descripcion || "",
-      monto: m.monto?.toString?.() || "",
       fecha: m.fecha || "",
-      metodoPago: m.metodoPago || "efectivo",
+      hora: m.hora || "",
+      gastoCompra:
+        m.gastoCompra !== undefined ? String(m.gastoCompra) : "",
+      cobroServicio:
+        m.cobroServicio !== undefined ? String(m.cobroServicio) : (m.monto ? String(m.monto) : "20"),
+      metodoPago: m.metodoPago || (m.pagado ? "efectivo" : "pendiente"),
       pagado: !!m.pagado,
+      notas: m.notas || "",
     });
     setEditErrors({
       clienteNombre: "",
       descripcion: "",
-      monto: "",
       fecha: "",
+      gastoCompra: "",
+      cobroServicio: "",
       metodoPago: "",
     });
   }
 
-  // validar campos del modal
+  // validar modal
   function validateForm() {
-    const errs = {
+    const e = {
       clienteNombre: "",
       descripcion: "",
-      monto: "",
       fecha: "",
+      gastoCompra: "",
+      cobroServicio: "",
       metodoPago: "",
     };
 
-    if (!editData.clienteNombre || editData.clienteNombre.trim() === "") {
-      errs.clienteNombre = "Ingresá el nombre del cliente";
-    }
+    if (!editData.clienteNombre?.trim()) e.clienteNombre = "Ingresá el nombre del cliente";
+    if (!editData.descripcion?.trim()) e.descripcion = "Ingresá una descripción";
+    if (!editData.fecha?.trim()) e.fecha = "Seleccioná una fecha";
 
-    if (!editData.descripcion || editData.descripcion.trim() === "") {
-      errs.descripcion = "Ingresá una descripción del mandado";
-    }
-
-    if (!editData.monto || editData.monto.toString().trim() === "") {
-      errs.monto = "Ingresá un monto";
+    if (editData.gastoCompra === "" || editData.gastoCompra === null) {
+      e.gastoCompra = "El gasto de la compra es obligatorio";
     } else {
-      const num = Number(editData.monto);
-      if (Number.isNaN(num)) {
-        errs.monto = "El monto debe ser un número";
-      } else if (num <= 0) {
-        errs.monto = "El monto debe ser mayor que 0";
-      }
+      const g = Number(editData.gastoCompra);
+      if (Number.isNaN(g)) e.gastoCompra = "El gasto debe ser numérico";
+      else if (g < 0) e.gastoCompra = "El gasto no puede ser negativo";
     }
 
-    if (!editData.fecha || editData.fecha.trim() === "") {
-      errs.fecha = "Seleccioná una fecha";
+    if (!editData.cobroServicio?.toString().trim()) {
+      e.cobroServicio = "El cobro de servicio es obligatorio";
+    } else {
+      const c = Number(editData.cobroServicio);
+      if (Number.isNaN(c)) e.cobroServicio = "El cobro debe ser numérico";
+      else if (c <= 0) e.cobroServicio = "El cobro debe ser mayor que 0";
     }
 
-    if (
-      !editData.metodoPago ||
-      !["efectivo", "transferencia", "pendiente"].includes(editData.metodoPago)
-    ) {
-      errs.metodoPago = "Seleccioná un método de pago";
+    if (!["efectivo", "transferencia", "pendiente"].includes(editData.metodoPago)) {
+      e.metodoPago = "Seleccioná un método de pago";
     }
 
-    setEditErrors(errs);
-    const hasError =
-      errs.clienteNombre || errs.descripcion || errs.monto || errs.fecha || errs.metodoPago;
-
-    return !hasError;
+    setEditErrors(e);
+    const has =
+      e.clienteNombre || e.descripcion || e.fecha || e.gastoCompra || e.cobroServicio || e.metodoPago;
+    return !has;
   }
 
-  // guardar cambios desde el modal
+  // guardar cambios desde el modal (recalcula derivados)
   function handleSaveEdit() {
     if (!editingId) return;
-
     if (!validateForm()) {
       showToast("⚠️ Revisá los campos marcados", "error");
       return;
     }
 
-    // guardar tal cual el checkbox (no forzar pagado)
-    const dataToSave = { ...editData };
+    const gasto = toNum(editData.gastoCompra);
+    const fee = toNum(editData.cobroServicio);
+    const totalCobrar = gasto + fee;
+    const utilidad = fee;
+
+    // coherencia pagado/pendiente
+    const metodoPago = editData.metodoPago;
+    const pagado = metodoPago === "pendiente" ? false : !!editData.pagado;
+
+    const dataToSave = {
+      ...editData,
+      gastoCompra: gasto,
+      cobroServicio: fee,
+      totalCobrar,
+      utilidad,
+      metodoPago,
+      pagado,
+    };
 
     try {
       updateMandado(editingId, dataToSave);
-
       if (!navigator.onLine) {
         showToast("✍️ Cambios guardados offline. Se sincronizan cuando haya internet.", "info");
       } else {
@@ -150,15 +226,13 @@ export default function MandadosList() {
     }
   }
 
-  // abrir modal de confirmación de borrado
+  // borrar
+  const [deletingId, setDeletingId] = useState(null);
   function handleAskDelete(m) {
     setDeletingId(m.id);
   }
-
-  // confirmar eliminar
   function handleConfirmDelete() {
     if (!deletingId) return;
-
     try {
       deleteMandado(deletingId);
       showToast("🗑 Mandado eliminado", "info");
@@ -168,12 +242,10 @@ export default function MandadosList() {
       setDeletingId(null);
     }
   }
-
   function handleCancelDelete() {
     setDeletingId(null);
   }
 
-  // si no hay mandados
   if (!mandados || mandados.length === 0) {
     return (
       <div className="flex flex-col items-center pt-8 px-4 text-gray-800">
@@ -185,79 +257,146 @@ export default function MandadosList() {
     );
   }
 
+  const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
+
   return (
     <div className="flex flex-col items-center pt-8 px-4 text-gray-800 pb-24">
       <h1 className="text-xl font-semibold text-gray-100 drop-shadow-sm mb-2">
-        Historial / Pendientes
+        Historial / Mandados
       </h1>
 
       <SearchBar value={search} onChange={setSearch} />
 
+      {/* controles de paginación */}
+      <div className="w-full max-w-xl mt-3 flex items-center justify-between bg-white p-2 rounded-xl shadow border">
+        <div className="text-sm text-gray-600">
+          Resultados: <span className="font-semibold">{total}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Por página:</label>
+          <select
+            className="border rounded-lg p-1 bg-white text-sm"
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="w-full max-w-xl mt-4 space-y-4">
-        {mandadosFiltrados.length === 0 ? (
+        {visibles.length === 0 ? (
           <div className="text-center text-white/80 text-sm bg-black/30 rounded-lg py-4 px-4 backdrop-blur-sm">
             No hay resultados para “{search}”.
           </div>
         ) : (
-          mandadosFiltrados.map((m) => (
-            <div
-              key={m.id}
-              className={`rounded-xl shadow-md border backdrop-blur-sm ${
-                m.pagado ? "bg-green-50/90 border-green-200" : "bg-yellow-50/90 border-yellow-200"
-              }`}
-            >
-              {/* header tarjeta */}
-              <div className="flex justify-between items-start p-4 pb-2">
-                <div>
-                  <p className="font-semibold text-gray-800">{m.clienteNombre}</p>
-                  <span className="text-xs text-gray-500 block">{m.fecha}</span>
+          visibles.map((m) => {
+            const totalCobrar = getTotalCobrar(m);
+            const utilidad = getUtilidad(m);
+            const gasto = toNum(m.gastoCompra);
+            const fee = toNum(m.cobroServicio);
+
+            return (
+              <div
+                key={m.id}
+                className={`rounded-xl shadow-md border backdrop-blur-sm ${
+                  m.pagado ? "bg-green-50/90 border-green-200" : "bg-yellow-50/90 border-yellow-200"
+                }`}
+              >
+                {/* header */}
+                <div className="flex justify-between items-start p-4 pb-2">
+                  <div>
+                    <p className="font-semibold text-gray-800">{m.clienteNombre}</p>
+                    <span className="text-xs text-gray-500 block">
+                      {m.fecha}{m.hora ? ` • ${m.hora}` : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm"
+                      onClick={() => handleOpenEdit(m)}
+                    >
+                      <span role="img" aria-label="edit">✏️</span>
+                      Editar
+                    </button>
+                    <button
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-red-100 border border-red-300 text-red-700 hover:bg-red-200 shadow-sm"
+                      onClick={() => handleAskDelete(m)}
+                    >
+                      <span role="img" aria-label="delete">🗑</span>
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm"
-                    onClick={() => handleOpenEdit(m)}
+                {/* body */}
+                <div className="px-4 pb-4 text-sm">
+                  <p className="text-gray-700">{m.descripcion}</p>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="bg-white rounded-lg border p-2">
+                      <p className="text-[11px] text-gray-500">Total cobrado / a cobrar</p>
+                      <p className="text-base font-semibold text-gray-900">C$ {fmt(totalCobrar)}</p>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Compra C$ {fmt(gasto)} + Servicio C$ {fmt(fee)}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg border p-2">
+                      <p className="text-[11px] text-gray-500">Utilidad</p>
+                      <p className="text-base font-semibold text-gray-900">C$ {fmt(utilidad)}</p>
+                    </div>
+                  </div>
+
+                  <p
+                    className={`text-sm mt-2 flex items-center gap-1 ${
+                      m.pagado ? "text-green-700" : "text-yellow-700"
+                    }`}
                   >
-                    <span role="img" aria-label="edit">✏️</span>
-                    Editar
-                  </button>
-                  <button
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-red-100 border border-red-300 text-red-700 hover:bg-red-200 shadow-sm"
-                    onClick={() => handleAskDelete(m)}
-                  >
-                    <span role="img" aria-label="delete">🗑</span>
-                    Eliminar
-                  </button>
+                    {m.pagado ? (
+                      <>
+                        <span>✅</span>
+                        <span>Pagado por {m.metodoPago || "—"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>💸</span>
+                        <span>Pendiente de pago</span>
+                      </>
+                    )}
+                  </p>
                 </div>
               </div>
-
-              {/* body tarjeta */}
-              <div className="px-4 pb-4 text-sm">
-                <p className="text-gray-700">{m.descripcion}</p>
-
-                <p className="text-gray-900 font-semibold mt-2">C$ {m.monto}</p>
-
-                <p
-                  className={`text-sm mt-1 flex items-center gap-1 ${
-                    m.pagado ? "text-green-700" : "text-yellow-700"
-                  }`}
-                >
-                  {m.pagado ? (
-                    <>
-                      <span>✅</span>
-                      <span>Pagado por {m.metodoPago}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>💸</span>
-                      <span>Pendiente de pago</span>
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
+      </div>
+
+      {/* paginador */}
+      <div className="w-full max-w-xl mt-3 flex items-center justify-between bg-white p-2 rounded-xl shadow border">
+        <button
+          className="px-3 py-2 text-sm border rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+        >
+          ← Anterior
+        </button>
+        <div className="text-sm text-gray-600">
+          Página <span className="font-semibold">{currentPage}</span> de{" "}
+          <span className="font-semibold">{totalPages}</span>{" "}
+          <span className="ml-2 text-gray-400">
+            ({startIndex + 1}–{endIndex} de {total})
+          </span>
+        </div>
+        <button
+          className="px-3 py-2 text-sm border rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50"
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+        >
+          Siguiente →
+        </button>
       </div>
 
       {/* MODAL EDICIÓN */}
@@ -280,9 +419,7 @@ export default function MandadosList() {
   );
 }
 
-/* -------------------------------------------------
-   SUBCOMPONENTES
---------------------------------------------------*/
+/* --------------------- SUBCOMPONENTES ---------------------- */
 
 function SearchBar({ value, onChange }) {
   return (
@@ -291,19 +428,18 @@ function SearchBar({ value, onChange }) {
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
         <input
           className="w-full rounded-lg border border-gray-300 bg-white/90 pl-8 pr-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Buscar... ej: Yamil, 2025-10-26, efectivo, 40, pendiente"
+          placeholder="Buscar... ej: Yamil, 2025-10-26, efectivo, pendiente, 20, compra, servicio"
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
       </div>
       <p className="text-[11px] text-gray-100 mt-1 drop-shadow">
-        Filtra por nombre, fecha, método de pago, monto, etc.
+        Filtra por nombre, fecha, método de pago, total, utilidad, etc.
       </p>
     </div>
   );
 }
 
-// helper de estilo para inputs en el modal
 function inputClass(base, hasError) {
   return (
     base +
@@ -313,13 +449,14 @@ function inputClass(base, hasError) {
 }
 
 function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
-  // limpiar error si escribe
   function handleFieldChange(field, value) {
     setData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   }
+
+  const g = toNum(data.gastoCompra);
+  const c = toNum(data.cobroServicio);
+  const total = Number.isNaN(g) || Number.isNaN(c) ? null : g + c;
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 p-4">
@@ -329,86 +466,96 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
         <div className="grid gap-3 text-sm">
           {/* Cliente */}
           <label className="flex flex-col">
-            <span className="text-gray-600 font-medium">
-              Cliente <span className="text-red-500">*</span>
-            </span>
+            <span className="text-gray-600 font-medium">Cliente <span className="text-red-500">*</span></span>
             <input
-              className={inputClass(
-                "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
-                !!errors.clienteNombre
-              )}
+              className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.clienteNombre)}
               value={data.clienteNombre}
               onChange={(e) => handleFieldChange("clienteNombre", e.target.value)}
             />
-            {errors.clienteNombre && (
-              <p className="text-xs text-red-500 mt-1">{errors.clienteNombre}</p>
-            )}
+            {errors.clienteNombre && <p className="text-xs text-red-500 mt-1">{errors.clienteNombre}</p>}
           </label>
 
           {/* Descripción */}
           <label className="flex flex-col">
-            <span className="text-gray-600 font-medium">
-              Descripción <span className="text-red-500">*</span>
-            </span>
+            <span className="text-gray-600 font-medium">Descripción <span className="text-red-500">*</span></span>
             <textarea
-              className={inputClass(
-                "border rounded-lg px-2 py-1 h-16 resize-none focus:outline-none focus:ring-2 bg-white",
-                !!errors.descripcion
-              )}
+              className={inputClass("border rounded-lg px-2 py-1 h-16 resize-none focus:outline-none focus:ring-2 bg-white", !!errors.descripcion)}
               value={data.descripcion}
               onChange={(e) => handleFieldChange("descripcion", e.target.value)}
-              placeholder="Ej: Atol, compra en pulpería, etc."
+              placeholder="Ej: Compra 1 lb de carne"
             />
-            {errors.descripcion && (
-              <p className="text-xs text-red-500 mt-1">{errors.descripcion}</p>
-            )}
+            {errors.descripcion && <p className="text-xs text-red-500 mt-1">{errors.descripcion}</p>}
           </label>
 
-          {/* Monto / Fecha */}
+          {/* Fecha / Hora */}
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col">
-              <span className="text-gray-600 font-medium">
-                Monto (C$) <span className="text-red-500">*</span>
-              </span>
-              <input
-                type="number"
-                className={inputClass(
-                  "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
-                  !!errors.monto
-                )}
-                value={data.monto}
-                onChange={(e) => handleFieldChange("monto", e.target.value)}
-              />
-              {errors.monto && <p className="text-xs text-red-500 mt-1">{errors.monto}</p>}
-            </label>
-
-            <label className="flex flex-col">
-              <span className="text-gray-600 font-medium">
-                Fecha <span className="text-red-500">*</span>
-              </span>
+              <span className="text-gray-600 font-medium">Fecha <span className="text-red-500">*</span></span>
               <input
                 type="date"
-                className={inputClass(
-                  "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
-                  !!errors.fecha
-                )}
+                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.fecha)}
                 value={data.fecha}
                 onChange={(e) => handleFieldChange("fecha", e.target.value)}
               />
               {errors.fecha && <p className="text-xs text-red-500 mt-1">{errors.fecha}</p>}
             </label>
+            <label className="flex flex-col">
+              <span className="text-gray-600 font-medium">Hora</span>
+              <input
+                type="time"
+                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", false)}
+                value={data.hora || ""}
+                onChange={(e) => handleFieldChange("hora", e.target.value)}
+              />
+            </label>
+          </div>
+
+          {/* Gasto / Servicio */}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col">
+              <span className="text-gray-600 font-medium">Gasto compra (C$) <span className="text-red-500">*</span></span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.gastoCompra)}
+                value={data.gastoCompra}
+                onChange={(e) => handleFieldChange("gastoCompra", e.target.value)}
+              />
+              {errors.gastoCompra && <p className="text-xs text-red-500 mt-1">{errors.gastoCompra}</p>}
+            </label>
+
+            <label className="flex flex-col">
+              <span className="text-gray-600 font-medium">Cobro servicio (C$) <span className="text-red-500">*</span></span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.cobroServicio)}
+                value={data.cobroServicio}
+                onChange={(e) => handleFieldChange("cobroServicio", e.target.value)}
+              />
+              {errors.cobroServicio && <p className="text-xs text-red-500 mt-1">{errors.cobroServicio}</p>}
+            </label>
+          </div>
+
+          {/* Preview totales */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border p-2 bg-gray-50">
+              <p className="text-[11px] text-gray-500">Total a cobrar</p>
+              <p className="font-semibold">{Number.isFinite(total) ? `C$ ${total.toFixed(2)}` : "—"}</p>
+            </div>
+            <div className="rounded-lg border p-2 bg-gray-50">
+              <p className="text-[11px] text-gray-500">Utilidad</p>
+              <p className="font-semibold">C$ {toNum(data.cobroServicio).toFixed(2)}</p>
+            </div>
           </div>
 
           {/* Método de pago */}
           <label className="flex flex-col">
-            <span className="text-gray-600 font-medium">
-              Método de pago <span className="text-red-500">*</span>
-            </span>
+            <span className="text-gray-600 font-medium">Método de pago <span className="text-red-500">*</span></span>
             <select
-              className={inputClass(
-                "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
-                !!errors.metodoPago
-              )}
+              className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.metodoPago)}
               value={data.metodoPago}
               onChange={(e) => handleFieldChange("metodoPago", e.target.value)}
             >
@@ -419,18 +566,20 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
             {errors.metodoPago && <p className="text-xs text-red-500 mt-1">{errors.metodoPago}</p>}
           </label>
 
-          {/* Pagado sí/no */}
+          {/* Pagado */}
           <label className="flex items-center gap-2 text-gray-700">
             <input
               type="checkbox"
               checked={data.pagado}
               onChange={(e) => handleFieldChange("pagado", e.target.checked)}
+              disabled={data.metodoPago === "pendiente"}
+              title={data.metodoPago === "pendiente" ? "Si es pendiente no puede marcarse como pagado" : ""}
             />
             <span className="text-sm font-medium">¿Pagado?</span>
           </label>
         </div>
 
-        {/* Botones modal */}
+        {/* Botones */}
         <div className="flex justify-end gap-2 pt-2">
           <button
             className="px-3 py-1 rounded-lg text-sm bg-gray-200 text-gray-800 hover:bg-gray-300"
