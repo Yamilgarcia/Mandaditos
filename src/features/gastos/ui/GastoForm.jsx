@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useGastos } from "../logic/useGastos";
 import { useToast } from "../../../components/ToastContext"; // ajusta la ruta según tu estructura real
+import { getTodayStr, getTimeStr } from "../../../utils/date";
+
+// ID único simple para idempotencia (originId)
+const newId = () =>
+  (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 export default function GastoForm() {
   const { createGasto } = useGastos();
@@ -18,10 +23,16 @@ export default function GastoForm() {
     nota: "",
   });
 
+  const sanitizeNumber = (val) =>
+    typeof val === "string" ? val.replace(",", ".") : val;
+
   function handleChange(e) {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" })); // limpiar error en ese campo mientras escribe
+    const sanitized =
+      name === "monto" ? sanitizeNumber(value) : value;
+
+    setForm((prev) => ({ ...prev, [name]: sanitized }));
+    setErrors((prev) => ({ ...prev, [name]: "" })); // limpiar error mientras escribe
   }
 
   function validate() {
@@ -70,19 +81,30 @@ export default function GastoForm() {
       return;
     }
 
-    // guardar
-    createGasto({
+    const montoNum = Number(form.monto);
+
+    // Construimos el gasto con claves idempotentes y flags de sync (offline-first)
+    const gasto = {
+      originId: newId(),                               // ← clave única para evitar duplicados
+      createdAt: Date.now(),                           // auditoría local
+      fecha: getTodayStr(),                            // útil para tus resúmenes diarios
+      hora: getTimeStr(),
       categoria: form.categoria,
-      monto: form.monto,
+      monto: montoNum,                                 // como número, no string
       nota: form.nota,
-    });
+
+      // flags de sincronización: tu hook puede usarlos para subir sin duplicar
+      syncStatus: navigator.onLine ? "syncing" : "pending",
+      needsUpload: true,
+      needsUpdate: false,
+    };
+
+    // guardar (el hook debería hacer upsert por originId cuando suba)
+    createGasto(gasto);
 
     // feedback al usuario
     if (!navigator.onLine) {
-      showToast(
-        "📦 Guardado offline. Se subirá cuando tengas internet.",
-        "info"
-      );
+      showToast("📦 Guardado offline. Se sube cuando haya internet.", "info");
     } else {
       showToast("💸 Gasto guardado correctamente", "success");
     }
@@ -159,6 +181,9 @@ export default function GastoForm() {
           value={form.monto}
           onChange={handleChange}
           placeholder="Ej: 120"
+          inputMode="decimal"
+          step="0.01"
+          min="0.01"
           className={inputClass(
             "rounded-lg p-2 w-full border focus:outline-none focus:ring-2 bg-white",
             !!errors.monto
