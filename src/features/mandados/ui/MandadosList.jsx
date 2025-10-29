@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useMandados } from "../logic/useMandados";
 import { useToast } from "../../../components/ToastContext";
 
+/* ===================== UTILS ===================== */
 function toNum(v) {
   const n = Number(v);
   return Number.isNaN(n) ? 0 : n;
@@ -34,7 +35,16 @@ function dedupeByOriginId(list) {
   }
   return Array.from(map.values());
 }
+// yyyy-mm-dd en horario local (evita desfases de toISOString/UTC)
+function getTodayLocalStr() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
+/* ===================== COMPONENTE ===================== */
 export default function MandadosList() {
   const { mandados, updateMandado, deleteMandado } = useMandados();
   const { showToast } = useToast();
@@ -68,21 +78,45 @@ export default function MandadosList() {
 
   // paginación
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // estado inicial leyendo localStorage (cae a 50 si no hay nada)
+  const [pageSize, setPageSize] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem("mandaditos_pageSize"));
+      return Number.isFinite(saved) && [5, 10, 20, 50].includes(saved) ? saved : 50;
+    } catch {
+      return 50;
+    }
+  });
+  // cada vez que cambie, lo guardás
+  useEffect(() => {
+    try {
+      localStorage.setItem("mandaditos_pageSize", String(pageSize));
+    } catch {}
+  }, [pageSize]);
 
-  // volver a página 1 cuando cambia búsqueda o pageSize
+  // ====== NUEVO: Hoy ======
+  const todayStr = getTodayLocalStr();
+  const [showTodayOnly, setShowTodayOnly] = useState(false);
+
+  // volver a página 1 cuando cambie búsqueda, pageSize o el toggle "Solo hoy"
   useEffect(() => {
     setPage(1);
-  }, [search, pageSize]);
+  }, [search, pageSize, showTodayOnly]);
 
   // lista base sin duplicados
   const baseList = useMemo(() => dedupeByOriginId(mandados || []), [mandados]);
+
+  // contador de hoy (para chip en UI)
+  const totalHoy = useMemo(
+    () => baseList.filter((m) => (m.fecha || "") === todayStr).length,
+    [baseList, todayStr]
+  );
 
   // filtrar + ordenar
   const mandadosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    const filtrados = !q
+    const filtradosBusqueda = !q
       ? baseList
       : baseList.filter((m) => {
           const totalCobrar = getTotalCobrar(m);
@@ -101,6 +135,11 @@ export default function MandadosList() {
           return hay;
         });
 
+    // NUEVO: si el toggle está activo, quedate solo con los de hoy
+    const filtrados = showTodayOnly
+      ? filtradosBusqueda.filter((m) => (m.fecha || "") === todayStr)
+      : filtradosBusqueda;
+
     // ordenar por fecha desc, luego hora desc
     return filtrados.slice().sort((a, b) => {
       const fa = a.fecha || "";
@@ -113,7 +152,7 @@ export default function MandadosList() {
       if (ha > hb) return -1;
       return (a.id || "").localeCompare(b.id || "");
     });
-  }, [search, baseList]);
+  }, [search, baseList, showTodayOnly, todayStr]);
 
   const total = mandadosFiltrados.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -279,12 +318,33 @@ export default function MandadosList() {
 
       <SearchBar value={search} onChange={setSearch} />
 
-      {/* controles de paginación */}
+      {/* controles de paginación + HOY */}
       <div className="w-full max-w-xl mt-3 flex items-center justify-between bg-white p-2 rounded-xl shadow border">
-        <div className="text-sm text-gray-600">
-          Resultados: <span className="font-semibold">{total}</span>
+        <div className="text-sm text-gray-600 flex items-center gap-2">
+          <span>
+            Resultados: <span className="font-semibold">{total}</span>
+          </span>
+          <span className="ml-2 text-xs px-2 py-[2px] rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+            Hoy: {totalHoy}
+          </span>
         </div>
+
         <div className="flex items-center gap-2">
+          {/* Toggle "Solo hoy" */}
+          <button
+            type="button"
+            onClick={() => setShowTodayOnly((v) => !v)}
+            disabled={totalHoy === 0}
+            className={`text-xs px-2 py-1 rounded-lg border shadow-sm ${
+              showTodayOnly
+                ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
+                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+            } ${totalHoy === 0 ? "opacity-60 cursor-not-allowed" : ""}`}
+            title={totalHoy === 0 ? "Hoy no hay mandados registrados" : "Mostrar solo los mandados de hoy"}
+          >
+            {showTodayOnly ? "Solo hoy ✓" : "Solo hoy"}
+          </button>
+
           <label className="text-sm text-gray-600">Por página:</label>
           <select
             className="border rounded-lg p-1 bg-white text-sm"
@@ -310,13 +370,14 @@ export default function MandadosList() {
             const gasto = toNum(m.gastoCompra);
             const fee = toNum(m.cobroServicio);
             const cant = Math.max(1, Number(m.cantidad || 1));
+            const esHoy = (m.fecha || "") === todayStr;
 
             return (
               <div
                 key={m.id}
                 className={`rounded-xl shadow-md border backdrop-blur-sm ${
                   m.pagado ? "bg-green-50/90 border-green-200" : "bg-yellow-50/90 border-yellow-200"
-                }`}
+                } ${esHoy ? "ring-2 ring-blue-300" : ""}`}
               >
                 {/* header */}
                 <div className="flex justify-between items-start p-4 pb-2">
@@ -327,6 +388,12 @@ export default function MandadosList() {
                       <span className="text-[11px] px-2 py-[2px] rounded-full bg-blue-100 text-blue-700 border border-blue-200">
                         x{cant}
                       </span>
+                      {/* Chip HOY */}
+                      {esHoy && (
+                        <span className="text-[10px] px-2 py-[2px] rounded-full bg-blue-600 text-white">
+                          HOY
+                        </span>
+                      )}
                     </p>
                     <span className="text-xs text-gray-500 block">
                       {m.fecha}{m.hora ? ` • ${m.hora}` : ""}
