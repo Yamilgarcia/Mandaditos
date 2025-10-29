@@ -24,13 +24,17 @@ function toNum(v) {
 }
 
 // Derivados consistentes
+// --> cantidad es informativa; NO altera totalCobrar/utilidad
 function withDerivatives(m) {
   const gasto = toNum(m.gastoCompra);
   const fee = toNum(m.cobroServicio);
+  const qty = Math.max(1, Math.floor(toNum(m.cantidad ?? 1)));
+
   return {
     ...m,
-    totalCobrar: gasto + fee,
-    utilidad: fee,
+    cantidad: qty,            // se guarda y sincroniza tal cual, normalizada >=1
+    totalCobrar: gasto + fee, // igual que original
+    utilidad: fee,            // igual que original
   };
 }
 
@@ -43,7 +47,6 @@ function dedupeByOriginId(list) {
     if (!prev) {
       map.set(key, m);
     } else {
-      // preferimos el que esté sincronizado o tenga remoteId
       const score = (x) => (x.syncStatus === "synced" ? 3 : x.remoteId ? 2 : 1);
       map.set(key, score(m) >= score(prev) ? m : prev);
     }
@@ -62,12 +65,10 @@ export function useMandados() {
     const toUpload = localList.filter((m) => m.needsUpload);
     for (const item of toUpload) {
       try {
-        // enviar originId y derivados también
+        // enviar derivados también (incluye cantidad normalizada)
         const payload = withDerivatives(item);
-        const remoteResult = await uploadNewMandado(payload); // debe incluir originId y devolver remoteId
-
-        // marcar local como subido (conservando originId)
-        const afterMark = markUploadedLocal(item.id, remoteResult.remoteId || remoteResult.id);
+        const remoteId = await uploadNewMandado(payload); // string
+        const afterMark = markUploadedLocal(item.id, remoteId);
         setMandadosState(afterMark);
         localList = afterMark;
       } catch (err) {
@@ -101,7 +102,7 @@ export function useMandados() {
   // ==============================
   async function pullRemoteAndMerge(localList) {
     try {
-      const remoteList = await getMandadosRemote(); // idealmente cada remoto tiene originId
+      const remoteList = await getMandadosRemote(); // pueden venir con o sin cantidad
       // Merge por originId / remoteId / id
       const merged = dedupeByOriginId([
         ...localList,
@@ -167,35 +168,69 @@ export function useMandados() {
   }
 
   // ✅ Marcar pagado
-  function markAsPaid(localId, metodoPagoReal = "efectivo") {
-    const all = getMandados();
-    const current = all.find((m) => m.id === localId);
-    if (!current) return;
+  // ✅ Marcar pagado (corrige flujos)
+function markAsPaid(localId, metodoPagoReal = "efectivo") {
+  const all = getMandados();
+  const current = all.find((m) => m.id === localId);
+  if (!current) return;
 
-    const updates = {
-      pagado: true,
-      metodoPago: metodoPagoReal,
-    };
+  const gasto = Number(current.gastoCompra || 0);
+  const fee = Number(current.cobroServicio || 0);
+  const totalCobrar =
+    current.totalCobrar !== undefined
+      ? Number(current.totalCobrar)
+      : gasto + fee;
 
-    // si ya está en remoto → needsUpdate; si no, mantiene needsUpload
-    if (current.remoteId) updates.needsUpdate = true;
+  // Recalcular flujos al pasar de "pendiente" -> "pagado"
+  let cajaDelta = 0;
+  let bancoDelta = 0;
+  let porCobrar = 0;
 
-    const afterUpdate = updateMandadoLocalById(localId, updates);
-    setMandadosState(afterUpdate);
-    fullSync();
+  if (metodoPagoReal === "efectivo") {
+    // ya habías salido -gasto; al cobrar en efectivo entra total
+    // neto del día en caja = fee
+    cajaDelta = -gasto + totalCobrar;
+    bancoDelta = 0;
+    porCobrar = 0;
+  } else if (metodoPagoReal === "transferencia") {
+    // en caja queda -gasto; el cobro entra al banco
+    cajaDelta = -gasto;
+    bancoDelta = totalCobrar;
+    porCobrar = 0;
+  } else {
+    // por si acaso (no debería usarse al marcar pagado)
+    cajaDelta = -gasto;
+    bancoDelta = 0;
+    porCobrar = totalCobrar;
   }
+
+  const updates = {
+    pagado: true,
+    metodoPago: metodoPagoReal,
+    cajaDelta,
+    bancoDelta,
+    porCobrar,
+    // si ya está en remoto → subir cambio
+    ...(current.remoteId ? { needsUpdate: true } : {}),
+  };
+
+  const afterUpdate = updateMandadoLocalById(localId, updates);
+  setMandadosState(afterUpdate);
+  fullSync();
+}
+
 
   // ✏️ Editar (offline + online)
   function updateMandado(localId, updates) {
-    // recalcular derivados si cambian campos económicos
+    // recalcular derivados si cambian campos económicos o cantidad
     const shouldRecalc =
-      "gastoCompra" in updates || "cobroServicio" in updates;
-    const merged = shouldRecalc ? withDerivatives(updates) : updates;
+      "gastoCompra" in updates || "cobroServicio" in updates || "cantidad" in updates;
+
+    const current = getMandados().find((m) => m.id === localId);
+    const merged = shouldRecalc ? withDerivatives({ ...current, ...updates }) : updates;
 
     // si ya está en remoto → needsUpdate; si no, sigue como needsUpload
-    const current = getMandados().find((m) => m.id === localId);
-    const flags =
-      current?.remoteId ? { needsUpdate: true } : {};
+    const flags = current?.remoteId ? { needsUpdate: true } : {};
 
     const afterUpdate = updateMandadoLocalById(localId, {
       ...merged,

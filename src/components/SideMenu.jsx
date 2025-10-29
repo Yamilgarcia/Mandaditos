@@ -66,6 +66,14 @@ export default function SideMenu({ onClose }) {
           >
             💵 Listado de gastos
           </Link>
+
+          <Link
+            to="/apertura"
+            onClick={onClose}
+            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+          >
+            🧾 Apertura del Día
+          </Link>
         </nav>
 
         <div className="mt-auto text-xs text-gray-400">

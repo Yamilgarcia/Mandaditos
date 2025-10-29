@@ -6,6 +6,7 @@ import HistorialPage from "./pages/HistorialPage";
 import GastosPage from "./pages/GastosPage";
 import PendientesPage from "./pages/PendientesPage";
 import GastosList from "./features/gastos/ui/GastosList";
+import AperturaPage from "./pages/AperturaPage";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/gastos" element={<GastosPage />} />
         <Route path="/pendientes" element={<PendientesPage />} />
         <Route path="/GastosList" element={<GastosList />} />
+        <Route path="/apertura" element={<AperturaPage />} />
       </Route>
     </Routes>
   );

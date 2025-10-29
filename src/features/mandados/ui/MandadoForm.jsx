@@ -14,6 +14,7 @@ export default function MandadoForm() {
     descripcion: "",
     gastoCompra: "",          // reembolso
     cobroServicio: "20",      // fee por defecto
+    cantidad: 1,              // NUEVO: informativo (no altera cálculos)
     metodoPago: "efectivo",
     notas: "",
   });
@@ -25,6 +26,7 @@ export default function MandadoForm() {
     descripcion: "",
     gastoCompra: "",
     cobroServicio: "",
+    cantidad: "",            // NUEVO
     metodoPago: "",
     notas: "",
   });
@@ -43,7 +45,17 @@ export default function MandadoForm() {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   }
 
-  // Cálculos en vivo
+  // Stepper de cantidad (solo informativa)
+  function incCantidad() {
+    setForm((prev) => ({ ...prev, cantidad: Math.max(1, Number(prev.cantidad || 1) + 1) }));
+    if (errors.cantidad) setErrors((prev) => ({ ...prev, cantidad: "" }));
+  }
+  function decCantidad() {
+    setForm((prev) => ({ ...prev, cantidad: Math.max(1, Number(prev.cantidad || 1) - 1) }));
+    if (errors.cantidad) setErrors((prev) => ({ ...prev, cantidad: "" }));
+  }
+
+  // Cálculos en vivo (igual que original)
   const { totalCobrarPreview, utilidadPreview } = useMemo(() => {
     const g = Number(form.gastoCompra || 0);
     const c = Number(form.cobroServicio || 0);
@@ -63,6 +75,7 @@ export default function MandadoForm() {
       descripcion: "",
       gastoCompra: "",
       cobroServicio: "",
+      cantidad: "",
       metodoPago: "",
       notas: "",
     };
@@ -90,6 +103,12 @@ export default function MandadoForm() {
       else if (num <= 0) e.cobroServicio = "El cobro debe ser mayor que 0";
     }
 
+    // cantidad: entero >= 1 (solo informativo)
+    const qty = Math.floor(Number(form.cantidad));
+    if (Number.isNaN(qty) || qty < 1) {
+      e.cantidad = "La cantidad debe ser un entero ≥ 1";
+    }
+
     if (!["efectivo", "transferencia", "pendiente"].includes(form.metodoPago)) {
       e.metodoPago = "Seleccioná método de pago";
     }
@@ -100,7 +119,7 @@ export default function MandadoForm() {
 
     const hasError =
       e.fecha || e.hora || e.clienteNombre || e.descripcion ||
-      e.gastoCompra || e.cobroServicio || e.metodoPago || e.notas;
+      e.gastoCompra || e.cobroServicio || e.cantidad || e.metodoPago || e.notas;
 
     return !hasError;
   }
@@ -115,8 +134,8 @@ export default function MandadoForm() {
     const pagado = form.metodoPago !== "pendiente";
     const gasto = Number(form.gastoCompra);
     const fee = Number(form.cobroServicio);
-    const totalCobrar = gasto + fee;     // lo que el cliente debe pagar
-    const utilidad = fee;                // tu ganancia
+    const totalCobrar = gasto + fee;     // igual que original
+    const utilidad = fee;                // igual que original
 
     // impactos de caja/banco
     let cajaDelta = 0;
@@ -166,7 +185,8 @@ export default function MandadoForm() {
       clienteNombre: "",
       descripcion: "",
       gastoCompra: "",
-      cobroServicio: "20",   // vuelve a 20 por defecto
+      cobroServicio: "20",
+      cantidad: 1,
       metodoPago: "efectivo",
       notas: "",
     });
@@ -177,6 +197,7 @@ export default function MandadoForm() {
       descripcion: "",
       gastoCompra: "",
       cobroServicio: "",
+      cantidad: "",
       metodoPago: "",
       notas: "",
     });
@@ -240,7 +261,7 @@ export default function MandadoForm() {
       <div className="flex flex-col">
         <textarea
           name="descripcion"
-          placeholder="Descripción del mandado (ej. 1 lb de carne)"
+          placeholder="Descripción del mandado (ej. súper y panadería)"
           value={form.descripcion}
           onChange={handleChange}
           className={inputClass("rounded-lg p-2 w-full h-20 border focus:outline-none focus:ring-2 bg-white resize-none", !!errors.descripcion)}
@@ -278,6 +299,47 @@ export default function MandadoForm() {
           />
           {errors.cobroServicio && <p className="text-xs text-red-500 mt-1">{errors.cobroServicio}</p>}
         </div>
+      </div>
+
+      {/* Cantidad (Stepper) */}
+      <div className="flex flex-col">
+        <label className="text-sm font-medium text-gray-700 mb-1">
+          Cantidad de mandados <span className="text-red-500">*</span>
+        </label>
+        <div className={`flex items-center gap-2 rounded-lg p-2 border ${errors.cantidad ? "border-red-400" : "border-gray-300"}`}>
+          <button
+            type="button"
+            onClick={decCantidad}
+            className="px-3 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 active:scale-[.98]"
+            aria-label="Disminuir cantidad"
+          >
+            –
+          </button>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="1"
+            step="1"
+            name="cantidad"
+            value={form.cantidad}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                cantidad: Math.max(1, Math.floor(Number(e.target.value || 1))),
+              }))
+            }
+            className="w-20 text-center rounded-lg p-2 border border-gray-300 focus:outline-none focus:ring-2"
+          />
+          <button
+            type="button"
+            onClick={incCantidad}
+            className="px-3 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 active:scale-[.98]"
+            aria-label="Aumentar cantidad"
+          >
+            +
+          </button>
+        </div>
+        {errors.cantidad && <p className="text-xs text-red-500 mt-1">{errors.cantidad}</p>}
       </div>
 
       {/* Totales en vivo */}

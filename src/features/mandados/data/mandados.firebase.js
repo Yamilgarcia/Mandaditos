@@ -11,7 +11,7 @@ import {
 const COLLECTION_NAME = "mandados";
 
 // SUBIR un mandado nuevo a Firestore
-// devuelve el id remoto
+// devuelve el id remoto (string)
 export async function uploadNewMandado(localMandado) {
   const payload = {
     ...localMandado,
@@ -25,7 +25,7 @@ export async function uploadNewMandado(localMandado) {
   // remoteId tampoco lo subimos, Firestore genera su propio id
 
   const ref = await addDoc(collection(db, COLLECTION_NAME), payload);
-  return ref.id;
+  return ref.id; // <-- string
 }
 
 // ACTUALIZAR en Firestore (mandado que ya existe en remoto)

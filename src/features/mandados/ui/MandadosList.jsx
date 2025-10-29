@@ -50,6 +50,7 @@ export default function MandadosList() {
     hora: "",
     gastoCompra: "",
     cobroServicio: "20",
+    cantidad: 1,               // ← NUEVO
     metodoPago: "efectivo",
     pagado: true,
     notas: "",
@@ -61,6 +62,7 @@ export default function MandadosList() {
     fecha: "",
     gastoCompra: "",
     cobroServicio: "",
+    cantidad: "",              // ← NUEVO
     metodoPago: "",
   });
 
@@ -94,6 +96,7 @@ export default function MandadosList() {
             (m.pagado ? "pagado" : "pendiente"),
             totalCobrar.toString(),
             utilidad.toString(),
+            (m.cantidad ?? 1).toString(),         // ← NUEVO
           ].some((field) => field?.includes(q));
           return hay;
         });
@@ -131,6 +134,7 @@ export default function MandadosList() {
         m.gastoCompra !== undefined ? String(m.gastoCompra) : "",
       cobroServicio:
         m.cobroServicio !== undefined ? String(m.cobroServicio) : (m.monto ? String(m.monto) : "20"),
+      cantidad: m.cantidad !== undefined ? Number(m.cantidad) : 1,    // ← NUEVO
       metodoPago: m.metodoPago || (m.pagado ? "efectivo" : "pendiente"),
       pagado: !!m.pagado,
       notas: m.notas || "",
@@ -141,6 +145,7 @@ export default function MandadosList() {
       fecha: "",
       gastoCompra: "",
       cobroServicio: "",
+      cantidad: "",    // ← NUEVO
       metodoPago: "",
     });
   }
@@ -153,6 +158,7 @@ export default function MandadosList() {
       fecha: "",
       gastoCompra: "",
       cobroServicio: "",
+      cantidad: "",
       metodoPago: "",
     };
 
@@ -176,13 +182,17 @@ export default function MandadosList() {
       else if (c <= 0) e.cobroServicio = "El cobro debe ser mayor que 0";
     }
 
+    // cantidad >= 1 (solo informativa / persistente)
+    const qty = Math.floor(Number(editData.cantidad));
+    if (Number.isNaN(qty) || qty < 1) e.cantidad = "Cantidad debe ser un entero ≥ 1";
+
     if (!["efectivo", "transferencia", "pendiente"].includes(editData.metodoPago)) {
       e.metodoPago = "Seleccioná un método de pago";
     }
 
     setEditErrors(e);
     const has =
-      e.clienteNombre || e.descripcion || e.fecha || e.gastoCompra || e.cobroServicio || e.metodoPago;
+      e.clienteNombre || e.descripcion || e.fecha || e.gastoCompra || e.cobroServicio || e.cantidad || e.metodoPago;
     return !has;
   }
 
@@ -211,6 +221,8 @@ export default function MandadosList() {
       utilidad,
       metodoPago,
       pagado,
+      // cantidad pasa intacta (ya validada) → se guarda local y se sincroniza
+      cantidad: Math.max(1, Math.floor(Number(editData.cantidad || 1))),
     };
 
     try {
@@ -297,6 +309,7 @@ export default function MandadosList() {
             const utilidad = getUtilidad(m);
             const gasto = toNum(m.gastoCompra);
             const fee = toNum(m.cobroServicio);
+            const cant = Math.max(1, Number(m.cantidad || 1));
 
             return (
               <div
@@ -308,7 +321,13 @@ export default function MandadosList() {
                 {/* header */}
                 <div className="flex justify-between items-start p-4 pb-2">
                   <div>
-                    <p className="font-semibold text-gray-800">{m.clienteNombre}</p>
+                    <p className="font-semibold text-gray-800 flex items-center gap-2">
+                      {m.clienteNombre}
+                      {/* Chip de cantidad */}
+                      <span className="text-[11px] px-2 py-[2px] rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                        x{cant}
+                      </span>
+                    </p>
                     <span className="text-xs text-gray-500 block">
                       {m.fecha}{m.hora ? ` • ${m.hora}` : ""}
                     </span>
@@ -347,6 +366,9 @@ export default function MandadosList() {
                     <div className="bg-white rounded-lg border p-2">
                       <p className="text-[11px] text-gray-500">Utilidad</p>
                       <p className="text-base font-semibold text-gray-900">C$ {fmt(utilidad)}</p>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Cantidad: x{cant}
+                      </p>
                     </div>
                   </div>
 
@@ -428,13 +450,13 @@ function SearchBar({ value, onChange }) {
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
         <input
           className="w-full rounded-lg border border-gray-300 bg-white/90 pl-8 pr-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Buscar... ej: Yamil, 2025-10-26, efectivo, pendiente, 20, compra, servicio"
+          placeholder="Buscar... ej: Yamil, 2025-10-26, efectivo, pendiente, 20, compra, x2"
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
       </div>
       <p className="text-[11px] text-gray-100 mt-1 drop-shadow">
-        Filtra por nombre, fecha, método de pago, total, utilidad, etc.
+        Filtra por nombre, fecha, método de pago, total, utilidad o cantidad.
       </p>
     </div>
   );
@@ -457,6 +479,15 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
   const g = toNum(data.gastoCompra);
   const c = toNum(data.cobroServicio);
   const total = Number.isNaN(g) || Number.isNaN(c) ? null : g + c;
+
+  // Stepper cantidad
+  const qty = Math.max(1, Math.floor(Number(data.cantidad || 1)));
+  function inc() {
+    handleFieldChange("cantidad", qty + 1);
+  }
+  function dec() {
+    handleFieldChange("cantidad", Math.max(1, qty - 1));
+  }
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 p-4">
@@ -482,7 +513,7 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
               className={inputClass("border rounded-lg px-2 py-1 h-16 resize-none focus:outline-none focus:ring-2 bg-white", !!errors.descripcion)}
               value={data.descripcion}
               onChange={(e) => handleFieldChange("descripcion", e.target.value)}
-              placeholder="Ej: Compra 1 lb de carne"
+              placeholder="Ej: Compras en súper y panadería"
             />
             {errors.descripcion && <p className="text-xs text-red-500 mt-1">{errors.descripcion}</p>}
           </label>
@@ -538,6 +569,42 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
               {errors.cobroServicio && <p className="text-xs text-red-500 mt-1">{errors.cobroServicio}</p>}
             </label>
           </div>
+
+          {/* Cantidad (Stepper) */}
+          <label className="flex flex-col">
+            <span className="text-gray-600 font-medium">
+              Cantidad de mandados <span className="text-red-500">*</span>
+            </span>
+            <div className={`flex items-center gap-2 rounded-lg p-2 border ${errors.cantidad ? "border-red-400" : "border-gray-300"}`}>
+              <button
+                type="button"
+                onClick={dec}
+                className="px-3 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 active:scale-[.98]"
+                aria-label="Disminuir cantidad"
+              >
+                –
+              </button>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={qty}
+                onChange={(e) =>
+                  handleFieldChange("cantidad", Math.max(1, Math.floor(Number(e.target.value || 1))))
+                }
+                className="w-20 text-center rounded-lg p-2 border border-gray-300 focus:outline-none focus:ring-2"
+              />
+              <button
+                type="button"
+                onClick={inc}
+                className="px-3 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 active:scale-[.98]"
+                aria-label="Aumentar cantidad"
+              >
+                +
+              </button>
+            </div>
+            {errors.cantidad && <p className="text-xs text-red-500 mt-1">{errors.cantidad}</p>}
+          </label>
 
           {/* Preview totales */}
           <div className="grid grid-cols-2 gap-2">

@@ -15,11 +15,16 @@ function getTotalCobrar(m) {
   return calc > 0 ? calc : legacy;
 }
 
+function getCantidad(m) {
+  const q = Math.floor(Number(m.cantidad ?? 1));
+  return Number.isNaN(q) || q < 1 ? 1 : q;
+}
+
 export default function PendientesList() {
   const { mandados, markAsPaid } = useMandados();
   const { showToast } = useToast();
 
-  const [seleccionPago, setSeleccionPago] = useState({}); 
+  const [seleccionPago, setSeleccionPago] = useState({});
   // paginado
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -104,6 +109,7 @@ export default function PendientesList() {
 
       {pendientes.map((m) => {
         const totalCobrar = getTotalCobrar(m);
+        const cant = getCantidad(m);
 
         return (
           <div
@@ -111,7 +117,16 @@ export default function PendientesList() {
             className="p-4 rounded-xl shadow-md bg-yellow-50 border border-yellow-200"
           >
             <div className="flex justify-between">
-              <h3 className="font-semibold text-gray-800">{m.clienteNombre}</h3>
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                {m.clienteNombre}
+                {/* Chip de cantidad */}
+                <span
+                  className="text-[11px] px-2 py-[2px] rounded-full bg-blue-100 text-blue-700 border border-blue-200"
+                  title="Cantidad de mandados en este registro"
+                >
+                  x{cant}
+                </span>
+              </h3>
               <span className="text-sm text-gray-500">
                 {m.fecha}{m.hora ? ` • ${m.hora}` : ""}
               </span>
@@ -119,9 +134,14 @@ export default function PendientesList() {
 
             <p className="text-gray-600">{m.descripcion}</p>
 
-            <p className="text-gray-800 font-medium mt-1">
-              Te debe: C$ {fmt(totalCobrar)}
-            </p>
+            <div className="mt-1 flex items-center justify-between">
+              <p className="text-gray-800 font-medium">
+                Te debe: C$ {fmt(totalCobrar)}
+              </p>
+              <p className="text-xs text-gray-600">
+                Cantidad: <span className="font-semibold">x{cant}</span>
+              </p>
+            </div>
 
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-700 mb-1">
