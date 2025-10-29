@@ -9,6 +9,16 @@ function toNum(v) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+
+// Asegura una cantidad entera ≥ 1 aunque venga como "x2", "2 pedidos", etc.
+function getQty(v) {
+  if (v == null) return 1;
+  if (typeof v === "number") return Math.max(1, Math.floor(v));
+  const m = String(v).match(/\d+/);
+  const n = m ? Number(m[0]) : 1;
+  return Math.max(1, Math.floor(n));
+}
+
 export default function ResumenDiaCard() {
   const { mandados } = useMandados();
   const { gastos } = useGastos();
@@ -19,6 +29,11 @@ export default function ResumenDiaCard() {
   const mandadosHoy = useMemo(
     () => (mandados || []).filter((m) => m.fecha === hoy),
     [mandados, hoy]
+  );
+
+  const totalMandadosHoy = useMemo(
+   () => mandadosHoy.reduce((acc, m) => acc + getQty(m.cantidad), 0),
+    [mandadosHoy]
   );
 
   const pagadosHoy = useMemo(
@@ -159,7 +174,7 @@ export default function ResumenDiaCard() {
       </div>
 
       <p className="text-center text-gray-600 text-sm mt-4">
-        Mandados hechos hoy: {mandadosHoy.length} · Por cobrar del día (según mandados): C$ {fmt(porCobrarDia)}
+        Mandados hechos hoy: {totalMandadosHoy} · Por cobrar del día (según mandados): C$ {fmt(porCobrarDia)}
       </p>
     </div>
   );
