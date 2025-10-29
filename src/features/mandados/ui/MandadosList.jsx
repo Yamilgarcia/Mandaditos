@@ -91,7 +91,12 @@ export default function MandadosList() {
   useEffect(() => {
     try {
       localStorage.setItem("mandaditos_pageSize", String(pageSize));
-    } catch {}
+    } catch (err) {
+   // Puede fallar en modo privado o si el storage está lleno
+   if (typeof console !== "undefined" && console.debug) {
+     console.debug("No se pudo guardar pageSize en localStorage:", err);
+   }
+ }
   }, [pageSize]);
 
   // ====== NUEVO: Hoy ======
