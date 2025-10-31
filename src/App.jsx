@@ -7,6 +7,7 @@ import GastosPage from "./pages/GastosPage";
 import PendientesPage from "./pages/PendientesPage";
 import GastosList from "./features/gastos/ui/GastosList";
 import AperturaPage from "./pages/AperturaPage";
+import DailySummaryV2 from "./features/summaryV2/ui/DailySummaryV2";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/pendientes" element={<PendientesPage />} />
         <Route path="/GastosList" element={<GastosList />} />
         <Route path="/apertura" element={<AperturaPage />} />
+        <Route path="/resumen-v2" element={<DailySummaryV2 />} />
       </Route>
     </Routes>
   );
