@@ -169,10 +169,16 @@ export function useMandados() {
 
   // ✅ Marcar pagado
   // ✅ Marcar pagado (corrige flujos)
+// ✅ Marcar pagado (corrige flujos + FECHA DE PAGO)
 function markAsPaid(localId, metodoPagoReal = "efectivo") {
   const all = getMandados();
   const current = all.find((m) => m.id === localId);
   if (!current) return;
+
+  const hoy = new Date();
+  const pad2 = (x) => String(x).padStart(2, "0");
+  const fechaPago = `${hoy.getFullYear()}-${pad2(hoy.getMonth() + 1)}-${pad2(hoy.getDate())}`;
+  const horaPago = `${pad2(hoy.getHours())}:${pad2(hoy.getMinutes())}`;
 
   const gasto = Number(current.gastoCompra || 0);
   const fee = Number(current.cobroServicio || 0);
@@ -187,18 +193,17 @@ function markAsPaid(localId, metodoPagoReal = "efectivo") {
   let porCobrar = 0;
 
   if (metodoPagoReal === "efectivo") {
-    // ya habías salido -gasto; al cobrar en efectivo entra total
-    // neto del día en caja = fee
+    // En caja: ya saliste -gasto al comprar; al cobrar entra total, neto del día = fee
     cajaDelta = -gasto + totalCobrar;
     bancoDelta = 0;
     porCobrar = 0;
   } else if (metodoPagoReal === "transferencia") {
-    // en caja queda -gasto; el cobro entra al banco
+    // En caja queda -gasto; el cobro entra al banco
     cajaDelta = -gasto;
     bancoDelta = totalCobrar;
     porCobrar = 0;
   } else {
-    // por si acaso (no debería usarse al marcar pagado)
+    // fallback (no debería usarse aquí)
     cajaDelta = -gasto;
     bancoDelta = 0;
     porCobrar = totalCobrar;
@@ -207,10 +212,11 @@ function markAsPaid(localId, metodoPagoReal = "efectivo") {
   const updates = {
     pagado: true,
     metodoPago: metodoPagoReal,
+    fechaPago,             // 👈 CLAVE para que el resumen lo sume HOY
+    horaPago,              // (opcional pero útil)
     cajaDelta,
     bancoDelta,
     porCobrar,
-    // si ya está en remoto → subir cambio
     ...(current.remoteId ? { needsUpdate: true } : {}),
   };
 
@@ -218,7 +224,6 @@ function markAsPaid(localId, metodoPagoReal = "efectivo") {
   setMandadosState(afterUpdate);
   fullSync();
 }
-
 
   // ✏️ Editar (offline + online)
   function updateMandado(localId, updates) {

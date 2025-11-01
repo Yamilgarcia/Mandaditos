@@ -1,3 +1,4 @@
+// src/features/mandados/ui/ResumenDiaCard.jsx
 import { useMemo } from "react";
 import { useMandados } from "../logic/useMandados";
 import { useGastos } from "../../gastos/logic/useGastos";
@@ -24,48 +25,69 @@ export default function ResumenDiaCard() {
   const hoy = getTodayStr();
   const { apertura } = useAperturaDia(hoy); // sólo caja inicial
 
-  // Mandados HOY
+  // === Conjuntos base ===
+
+  // Mandados CREADOS hoy (para el contador "hechos hoy" y pendientes del día)
   const mandadosHoy = useMemo(
     () => (mandados || []).filter((m) => m.fecha === hoy),
     [mandados, hoy]
   );
 
-  // Contador de unidades (si te interesa)
-  const totalMandadosHoy = useMemo(
-    () => mandadosHoy.reduce((acc, m) => acc + getQty(m.cantidad), 0),
-    [mandadosHoy]
+  // Mandados COBRADOS hoy (pagados hoy por fechaPago; fallback: fecha para datos viejos sin fechaPago)
+  const cobradosHoy = useMemo(
+    () =>
+      (mandados || []).filter(
+        (m) =>
+          m.pagado &&
+          ((m.fechaPago && m.fechaPago === hoy) || (!m.fechaPago && m.fecha === hoy))
+      ),
+    [mandados, hoy]
   );
 
-  const pagadosHoy = useMemo(
-    () => mandadosHoy.filter((m) => m.pagado),
-    [mandadosHoy]
-  );
-
+  // Pendientes del día (solo informativo)
   const pendientesHoy = useMemo(
     () => mandadosHoy.filter((m) => !m.pagado),
     [mandadosHoy]
   );
 
-  // === MÉTRICAS (cobroServicio ya es TOTAL, SIN multiplicar) ===
-
-  // ✅ Utilidad pagada
-  const utilidadPagada = useMemo(
-    () => pagadosHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
-    [pagadosHoy]
+  // Pendientes globales (lo que se mostrará como "Pendiente cobrar")
+  const pendientesGlobal = useMemo(
+    () => (mandados || []).filter((m) => !m.pagado),
+    [mandados]
   );
 
-  // Informativo: total cobrado hoy (compra + fee TOTAL)
+  // === Métricas ===
+
+  // Contador de unidades creadas hoy
+  const totalMandadosHoy = useMemo(
+    () => mandadosHoy.reduce((acc, m) => acc + getQty(m.cantidad), 0),
+    [mandadosHoy]
+  );
+
+  // ✅ Utilidad PAGADA hoy (usa fechaPago)
+  const utilidadPagada = useMemo(
+    () => cobradosHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
+    [cobradosHoy]
+  );
+
+  // Informativo: total cobrado HOY (reembolso + fee total) por fechaPago
   const ingresadoHoy = useMemo(
     () =>
-      pagadosHoy.reduce(
+      cobradosHoy.reduce(
         (acc, m) => acc + toNum(m.gastoCompra) + toNum(m.cobroServicio),
         0
       ),
-    [pagadosHoy]
+    [cobradosHoy]
   );
 
-  // Pendiente (como UTILIDAD total de los pendientes)
-  const pendienteUtilidad = useMemo(
+  // Pendiente cobrar (UTILIDAD) — GLOBAL
+  const pendienteUtilidadGlobal = useMemo(
+    () => pendientesGlobal.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
+    [pendientesGlobal]
+  );
+
+  // Pendiente del día (UTILIDAD) — informativo
+  const pendienteUtilidadHoy = useMemo(
     () => pendientesHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
     [pendientesHoy]
   );
@@ -81,15 +103,14 @@ export default function ResumenDiaCard() {
     [gastosHoy]
   );
 
-  // Restante del día (utilidad - otros gastos)
+  // Restante del día (utilidad pagada HOY - gastos HOY)
   const restante = utilidadPagada - totalGastado;
 
   // Caja
   const cajaInicial = toNum(apertura?.cajaInicial || 0);
 
-  // ✅ Caja esperada = Caja inicial + Utilidad pagada
+  // ✅ Caja esperada = Caja inicial + (utilidad pagada HOY - gastos HOY)
   const cajaEsperada = cajaInicial + (utilidadPagada - totalGastado);
-
 
   const colorClase = restante >= 0 ? "bg-green-100" : "bg-red-100";
   const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
@@ -118,7 +139,10 @@ export default function ResumenDiaCard() {
 
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Pendiente cobrar (utilidad)</p>
-          <p className="text-lg font-bold text-yellow-600">C$ {fmt(pendienteUtilidad)}</p>
+          <p className="text-lg font-bold text-yellow-600">C$ {fmt(pendienteUtilidadGlobal)}</p>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Pendientes de hoy: C$ {fmt(pendienteUtilidadHoy)}
+          </p>
         </div>
 
         <div className="bg-white rounded-xl shadow p-3">
