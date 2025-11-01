@@ -21,6 +21,7 @@ export default function App() {
         <Route path="/GastosList" element={<GastosList />} />
         <Route path="/apertura" element={<AperturaPage />} />
         <Route path="/resumen-v2" element={<DailySummaryV2 />} />
+
       </Route>
     </Routes>
   );

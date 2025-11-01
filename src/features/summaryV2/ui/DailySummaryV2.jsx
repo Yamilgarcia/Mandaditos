@@ -71,17 +71,23 @@ export default function DailySummaryV2() {
         />
       </section>
 
-      {/* Bloques informativos (compactos en móvil) */}
-      <section className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Bloques informativos */}
+      <section className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
         <Info
           label="Ganado (utilidad pagada)"
           value={C(r.ingresoServicioPagado)}
           accent="text-emerald-700"
         />
         <Info
-          label="Pendiente cobrar (utilidad)"
+          label="Pendiente cobrar (utilidad HOY)"
           value={C(r.ingresoServicioPendiente)}
           accent="text-amber-700"
+        />
+        {/* NUEVO: GLOBAL */}
+        <Info
+          label="Pendiente global (utilidad)"
+          value={C(r.pendienteGlobalUtilidad)}
+          accent="text-amber-800"
         />
         <Info label="Ingresado hoy (info total)" value={C(r.ingresoServicioTotal)} />
       </section>
@@ -90,7 +96,13 @@ export default function DailySummaryV2() {
       <section className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card title="Por método de pago (totalCobrar)">
           <ListKV
-            rows={Object.entries(r.porMetodoCobrado).map(([k, v]) => [k, C(v)])}
+            rows={[
+              ...Object.entries(r.porMetodoCobrado).map(([k, v]) => [k, C(v)]),
+              // NUEVO renglón informativo
+              ["pendiente (global)", C(r.pendienteGlobalTotalCobrar)],
+              // Si prefieres ver solo los de otros días, descomenta:
+              // ["pendiente (otros días)", C(r.pendienteGlobalTotalCobrar - r.totalCobrarPendiente)],
+            ]}
             empty="Sin datos"
           />
         </Card>
@@ -106,8 +118,9 @@ export default function DailySummaryV2() {
       </section>
 
       <p className="text-[11px] sm:text-xs text-gray-500 mt-6">
-        Nota: “Caja esperada” usa solo utilidad <b>pagada</b>. “Caja (info total)”
-        incluye pendientes.
+        Nota: “Caja esperada” usa solo utilidad <b>pagada</b> de HOY. “Caja (info total)”
+        incluye pendientes de HOY. Los bloques “pendiente global” y el renglón
+        “pendiente (global)” consideran <b>todas</b> las fechas.
       </p>
     </div>
   );
@@ -146,6 +159,7 @@ function KPI({ label, value }) {
     </div>
   );
 }
+
 function Info({ label, value, accent = "" }) {
   return (
     <div className="bg-white/95 rounded-xl sm:rounded-2xl shadow p-3 sm:p-4">
@@ -154,6 +168,7 @@ function Info({ label, value, accent = "" }) {
     </div>
   );
 }
+
 function Card({ title, children }) {
   return (
     <div className="bg-white/95 rounded-xl sm:rounded-2xl shadow p-3 sm:p-4">
@@ -162,6 +177,7 @@ function Card({ title, children }) {
     </div>
   );
 }
+
 function ListKV({ rows = [], empty }) {
   if (!rows.length) return <div className="text-gray-500 text-sm">{empty}</div>;
   return (
