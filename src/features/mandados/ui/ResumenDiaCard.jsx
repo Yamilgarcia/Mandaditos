@@ -19,6 +19,22 @@ function getQty(v) {
   return Math.max(1, Math.floor(n));
 }
 
+// Totales coherentes con el resto de la app
+// totalCobrado: gastoCompra + cobroServicio (o m.totalCobrar si existe)
+// utilidad: cobroServicio (o m.utilidad si existe)
+function getTotalesMandado(m) {
+  const gasto = toNum(m.gastoCompra);
+  const fee = toNum(m.cobroServicio);
+
+  const totalCobrado =
+    m.totalCobrar !== undefined ? toNum(m.totalCobrar) : toNum(gasto + fee);
+
+  const utilidad =
+    m.utilidad !== undefined ? toNum(m.utilidad) : toNum(fee);
+
+  return { totalCobrado, utilidad };
+}
+
 export default function ResumenDiaCard() {
   const { mandados } = useMandados();
   const { gastos } = useGastos();
@@ -27,19 +43,20 @@ export default function ResumenDiaCard() {
 
   // === Conjuntos base ===
 
-  // Mandados CREADOS hoy (para el contador "hechos hoy" y pendientes del día)
+  // Mandados CREADOS hoy (para contador "hechos hoy" y pendientes del día)
   const mandadosHoy = useMemo(
     () => (mandados || []).filter((m) => m.fecha === hoy),
     [mandados, hoy]
   );
 
-  // Mandados COBRADOS hoy (pagados hoy por fechaPago; fallback: fecha para datos viejos sin fechaPago)
+  // Mandados COBRADOS hoy (pagados hoy por fechaPago; fallback: fecha)
   const cobradosHoy = useMemo(
     () =>
       (mandados || []).filter(
         (m) =>
           m.pagado &&
-          ((m.fechaPago && m.fechaPago === hoy) || (!m.fechaPago && m.fecha === hoy))
+          ((m.fechaPago && m.fechaPago === hoy) ||
+            (!m.fechaPago && m.fecha === hoy))
       ),
     [mandados, hoy]
   );
@@ -64,35 +81,73 @@ export default function ResumenDiaCard() {
     [mandadosHoy]
   );
 
-  // ✅ Utilidad PAGADA hoy (usa fechaPago)
+  // Utilidad PAGADA hoy
   const utilidadPagada = useMemo(
-    () => cobradosHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
+    () =>
+      cobradosHoy.reduce((acc, m) => {
+        const { utilidad } = getTotalesMandado(m);
+        return acc + utilidad;
+      }, 0),
     [cobradosHoy]
   );
 
-  // Informativo: total cobrado HOY (reembolso + fee total) por fechaPago
+  // Total cobrado HOY (reembolso + fee)
   const ingresadoHoy = useMemo(
     () =>
-      cobradosHoy.reduce(
-        (acc, m) => acc + toNum(m.gastoCompra) + toNum(m.cobroServicio),
-        0
-      ),
+      cobradosHoy.reduce((acc, m) => {
+        const { totalCobrado } = getTotalesMandado(m);
+        return acc + totalCobrado;
+      }, 0),
     [cobradosHoy]
   );
 
   // Pendiente cobrar (UTILIDAD) — GLOBAL
   const pendienteUtilidadGlobal = useMemo(
-    () => pendientesGlobal.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
+    () =>
+      pendientesGlobal.reduce((acc, m) => {
+        const { utilidad } = getTotalesMandado(m);
+        return acc + utilidad;
+      }, 0),
     [pendientesGlobal]
   );
 
-  // Pendiente del día (UTILIDAD) — informativo
+  // Pendiente del día (UTILIDAD)
   const pendienteUtilidadHoy = useMemo(
-    () => pendientesHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
+    () =>
+      pendientesHoy.reduce((acc, m) => {
+        const { utilidad } = getTotalesMandado(m);
+        return acc + utilidad;
+      }, 0),
     [pendientesHoy]
   );
 
-  // Gastos del día
+  // Pendiente cobrar (TOTAL: compra + servicio)
+  const pendienteTotalGlobal = useMemo(
+    () =>
+      pendientesGlobal.reduce((acc, m) => {
+        const { totalCobrado } = getTotalesMandado(m);
+        return acc + totalCobrado;
+      }, 0),
+    [pendientesGlobal]
+  );
+
+  const pendienteTotalHoy = useMemo(
+    () =>
+      pendientesHoy.reduce((acc, m) => {
+        const { totalCobrado } = getTotalesMandado(m);
+        return acc + totalCobrado;
+      }, 0),
+    [pendientesHoy]
+  );
+
+  // ⚠️ NUEVO: compras adelantadas de mandados pendientes HOY
+  const comprasPendientesHoy = useMemo(
+    () =>
+      pendientesHoy.reduce((acc, m) => acc + toNum(m.gastoCompra), 0),
+    [pendientesHoy]
+  );
+
+  // Gastos del día (no reembolsables)
   const gastosHoy = useMemo(
     () => (gastos || []).filter((g) => g.fecha === hoy),
     [gastos, hoy]
@@ -109,8 +164,13 @@ export default function ResumenDiaCard() {
   // Caja
   const cajaInicial = toNum(apertura?.cajaInicial || 0);
 
-  // ✅ Caja esperada = Caja inicial + (utilidad pagada HOY - gastos HOY)
-  const cajaEsperada = cajaInicial + (utilidadPagada - totalGastado);
+  // ✅ NUEVA fórmula de Caja esperada:
+  // Caja inicial
+  // + todo lo cobrado hoy (compra + servicio)
+  // − gastos del día
+  // − compras de mandados que siguen pendientes (adelantadas hoy)
+  const cajaEsperada =
+    cajaInicial + ingresadoHoy - totalGastado - comprasPendientesHoy;
 
   const colorClase = restante >= 0 ? "bg-green-100" : "bg-red-100";
   const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
@@ -139,7 +199,9 @@ export default function ResumenDiaCard() {
 
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Pendiente cobrar (utilidad)</p>
-          <p className="text-lg font-bold text-yellow-600">C$ {fmt(pendienteUtilidadGlobal)}</p>
+          <p className="text-lg font-bold text-yellow-600">
+            C$ {fmt(pendienteUtilidadGlobal)}
+          </p>
           <p className="text-[11px] text-gray-500 mt-1">
             Pendientes de hoy: C$ {fmt(pendienteUtilidadHoy)}
           </p>
@@ -153,6 +215,18 @@ export default function ResumenDiaCard() {
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Restante del día</p>
           <p className="text-lg font-bold text-gray-800">C$ {fmt(restante)}</p>
+        </div>
+
+        <div className="bg-white rounded-xl shadow p-3 col-span-2">
+          <p className="text-xs text-gray-500 font-medium">
+            Pendiente cobrar (total: compra + servicio)
+          </p>
+          <p className="text-lg font-bold text-orange-600">
+            C$ {fmt(pendienteTotalGlobal)}
+          </p>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Pendientes de hoy (total): C$ {fmt(pendienteTotalHoy)}
+          </p>
         </div>
       </div>
 
