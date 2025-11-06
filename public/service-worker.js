@@ -6,7 +6,7 @@
    - Assets: stale-while-revalidate (rápido + se actualiza en segundo plano).
 */
 
-const CACHE_NAME = "mandaditos-cache-v22";
+const CACHE_NAME = "mandaditos-cache-v23";
 
 // Archivos base mínimos para que la app arranque offline
 const CORE_ASSETS = [
