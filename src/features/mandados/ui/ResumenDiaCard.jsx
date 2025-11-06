@@ -39,7 +39,8 @@ export default function ResumenDiaCard() {
       (mandados || []).filter(
         (m) =>
           m.pagado &&
-          ((m.fechaPago && m.fechaPago === hoy) || (!m.fechaPago && m.fecha === hoy))
+          ((m.fechaPago && m.fechaPago === hoy) ||
+            (!m.fechaPago && m.fecha === hoy))
       ),
     [mandados, hoy]
   );
@@ -70,7 +71,7 @@ export default function ResumenDiaCard() {
     [cobradosHoy]
   );
 
-  // Informativo: total cobrado HOY (reembolso + fee total) por fechaPago
+  // ✅ Total cobrado HOY (reembolso + fee total) por fechaPago
   const ingresadoHoy = useMemo(
     () =>
       cobradosHoy.reduce(
@@ -92,7 +93,32 @@ export default function ResumenDiaCard() {
     [pendientesHoy]
   );
 
-  // Gastos del día
+  // ⚠️ NUEVO: Pendiente cobrar (TOTAL: compra + servicio)
+  const pendienteTotalGlobal = useMemo(
+    () =>
+      pendientesGlobal.reduce(
+        (acc, m) => acc + toNum(m.gastoCompra) + toNum(m.cobroServicio),
+        0
+      ),
+    [pendientesGlobal]
+  );
+
+  const pendienteTotalHoy = useMemo(
+    () =>
+      pendientesHoy.reduce(
+        (acc, m) => acc + toNum(m.gastoCompra) + toNum(m.cobroServicio),
+        0
+      ),
+    [pendientesHoy]
+  );
+
+  // 🟢 Compras de mandados CREADOS hoy (pagados o no)
+  const comprasHoy = useMemo(
+    () => mandadosHoy.reduce((acc, m) => acc + toNum(m.gastoCompra), 0),
+    [mandadosHoy]
+  );
+
+  // Gastos del día (gastos personales)
   const gastosHoy = useMemo(
     () => (gastos || []).filter((g) => g.fecha === hoy),
     [gastos, hoy]
@@ -109,8 +135,10 @@ export default function ResumenDiaCard() {
   // Caja
   const cajaInicial = toNum(apertura?.cajaInicial || 0);
 
-  // ✅ Caja esperada = Caja inicial + (utilidad pagada HOY - gastos HOY)
-  const cajaEsperada = cajaInicial + (utilidadPagada - totalGastado);
+  // ✅ Caja esperada = Caja inicial - compras de HOY + todo lo cobrado HOY - gastos HOY
+  //  - comprasHoy: gastoCompra de mandados de hoy (pagados o pendientes)
+  //  - ingresadoHoy: gastoCompra + cobroServicio de mandados pagados HOY (aunque sean de días viejos)
+  const cajaEsperada = cajaInicial - comprasHoy + ingresadoHoy - totalGastado;
 
   const colorClase = restante >= 0 ? "bg-green-100" : "bg-red-100";
   const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
@@ -139,7 +167,9 @@ export default function ResumenDiaCard() {
 
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Pendiente cobrar (utilidad)</p>
-          <p className="text-lg font-bold text-yellow-600">C$ {fmt(pendienteUtilidadGlobal)}</p>
+          <p className="text-lg font-bold text-yellow-600">
+            C$ {fmt(pendienteUtilidadGlobal)}
+          </p>
           <p className="text-[11px] text-gray-500 mt-1">
             Pendientes de hoy: C$ {fmt(pendienteUtilidadHoy)}
           </p>
@@ -153,6 +183,19 @@ export default function ResumenDiaCard() {
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Restante del día</p>
           <p className="text-lg font-bold text-gray-800">C$ {fmt(restante)}</p>
+        </div>
+
+        {/* ⚠️ NUEVA TARJETA: Pendiente cobrar (TOTAL) */}
+        <div className="bg-white rounded-xl shadow p-3 col-span-2">
+          <p className="text-xs text-gray-500 font-medium">
+            Pendiente cobrar (total: compra + servicio)
+          </p>
+          <p className="text-lg font-bold text-orange-600">
+            C$ {fmt(pendienteTotalGlobal)}
+          </p>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Pendientes de hoy (total): C$ {fmt(pendienteTotalHoy)}
+          </p>
         </div>
       </div>
 
