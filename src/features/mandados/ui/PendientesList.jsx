@@ -20,6 +20,15 @@ function getCantidad(m) {
   return Number.isNaN(q) || q < 1 ? 1 : q;
 }
 
+// yyyy-mm-dd en horario local
+function getTodayLocalStr() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function PendientesList() {
   const { mandados, markAsPaid } = useMandados();
   const { showToast } = useToast();
@@ -29,9 +38,8 @@ export default function PendientesList() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // pendientes ordenados por fecha desc y hora desc (si existe)
   const pendientesOrdenados = useMemo(() => {
-    return mandados
+    return (mandados || [])
       .filter((m) => !m.pagado)
       .slice()
       .sort((a, b) => {
@@ -65,10 +73,12 @@ export default function PendientesList() {
 
   async function handleMarkAsPaid(m) {
     const metodo = seleccionPago[m.id] || "efectivo";
+    const fechaPago = getTodayLocalStr();
 
     try {
       // actualizamos estado local offline-first
-      await markAsPaid(m.id, metodo);
+      // Nota: markAsPaid debería aceptarlo como markAsPaid(id, metodo, fechaPago)
+      await markAsPaid(m.id, metodo, fechaPago);
 
       if (!navigator.onLine) {
         showToast("📦 Marcado como pagado (offline). Se sincroniza cuando haya internet.", "info");

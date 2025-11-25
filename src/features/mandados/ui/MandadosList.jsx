@@ -60,7 +60,7 @@ export default function MandadosList() {
     hora: "",
     gastoCompra: "",
     cobroServicio: "20",
-    cantidad: 1,               // ← NUEVO
+    cantidad: 1, // ← NUEVO
     metodoPago: "efectivo",
     pagado: true,
     notas: "",
@@ -72,7 +72,7 @@ export default function MandadosList() {
     fecha: "",
     gastoCompra: "",
     cobroServicio: "",
-    cantidad: "",              // ← NUEVO
+    cantidad: "", // ← NUEVO
     metodoPago: "",
   });
 
@@ -82,7 +82,9 @@ export default function MandadosList() {
   const [pageSize, setPageSize] = useState(() => {
     try {
       const saved = Number(localStorage.getItem("mandaditos_pageSize"));
-      return Number.isFinite(saved) && [5, 10, 20, 50].includes(saved) ? saved : 50;
+      return Number.isFinite(saved) && [5, 10, 20, 50].includes(saved)
+        ? saved
+        : 50;
     } catch {
       return 50;
     }
@@ -92,11 +94,11 @@ export default function MandadosList() {
     try {
       localStorage.setItem("mandaditos_pageSize", String(pageSize));
     } catch (err) {
-   // Puede fallar en modo privado o si el storage está lleno
-   if (typeof console !== "undefined" && console.debug) {
-     console.debug("No se pudo guardar pageSize en localStorage:", err);
-   }
- }
+      // Puede fallar en modo privado o si el storage está lleno
+      if (typeof console !== "undefined" && console.debug) {
+        console.debug("No se pudo guardar pageSize en localStorage:", err);
+      }
+    }
   }, [pageSize]);
 
   // ====== NUEVO: Hoy ======
@@ -112,8 +114,12 @@ export default function MandadosList() {
   const baseList = useMemo(() => dedupeByOriginId(mandados || []), [mandados]);
 
   // contador de hoy (para chip en UI)
+  // ahora cuenta mandados cuya fecha sea hoy OR que tuvieron un pago hoy (fechaPago)
   const totalHoy = useMemo(
-    () => baseList.filter((m) => (m.fecha || "") === todayStr).length,
+    () =>
+      baseList.filter(
+        (m) => (m.fecha || "") === todayStr || (m.fechaPago || "") === todayStr
+      ).length,
     [baseList, todayStr]
   );
 
@@ -132,18 +138,21 @@ export default function MandadosList() {
             m.clienteNombre?.toLowerCase(),
             m.descripcion?.toLowerCase(),
             m.metodoPago?.toLowerCase(),
-            (m.pagado ? "pagado" : "pendiente"),
+            m.pagado ? "pagado" : "pendiente",
             totalCobrar.toString(),
             utilidad.toString(),
-            (m.cantidad ?? 1).toString(),         // ← NUEVO
+            (m.cantidad ?? 1).toString(), // ← NUEVO
           ].some((field) => field?.includes(q));
           return hay;
         });
 
     // NUEVO: si el toggle está activo, quedate solo con los de hoy
     const filtrados = showTodayOnly
-      ? filtradosBusqueda.filter((m) => (m.fecha || "") === todayStr)
-      : filtradosBusqueda;
+  ? filtradosBusqueda.filter(
+      (m) => (m.fecha || "") === todayStr || (m.fechaPago || "") === todayStr
+    )
+  : filtradosBusqueda;
+
 
     // ordenar por fecha desc, luego hora desc
     return filtrados.slice().sort((a, b) => {
@@ -174,11 +183,14 @@ export default function MandadosList() {
       descripcion: m.descripcion || "",
       fecha: m.fecha || "",
       hora: m.hora || "",
-      gastoCompra:
-        m.gastoCompra !== undefined ? String(m.gastoCompra) : "",
+      gastoCompra: m.gastoCompra !== undefined ? String(m.gastoCompra) : "",
       cobroServicio:
-        m.cobroServicio !== undefined ? String(m.cobroServicio) : (m.monto ? String(m.monto) : "20"),
-      cantidad: m.cantidad !== undefined ? Number(m.cantidad) : 1,    // ← NUEVO
+        m.cobroServicio !== undefined
+          ? String(m.cobroServicio)
+          : m.monto
+          ? String(m.monto)
+          : "20",
+      cantidad: m.cantidad !== undefined ? Number(m.cantidad) : 1, // ← NUEVO
       metodoPago: m.metodoPago || (m.pagado ? "efectivo" : "pendiente"),
       pagado: !!m.pagado,
       notas: m.notas || "",
@@ -189,7 +201,7 @@ export default function MandadosList() {
       fecha: "",
       gastoCompra: "",
       cobroServicio: "",
-      cantidad: "",    // ← NUEVO
+      cantidad: "", // ← NUEVO
       metodoPago: "",
     });
   }
@@ -206,8 +218,10 @@ export default function MandadosList() {
       metodoPago: "",
     };
 
-    if (!editData.clienteNombre?.trim()) e.clienteNombre = "Ingresá el nombre del cliente";
-    if (!editData.descripcion?.trim()) e.descripcion = "Ingresá una descripción";
+    if (!editData.clienteNombre?.trim())
+      e.clienteNombre = "Ingresá el nombre del cliente";
+    if (!editData.descripcion?.trim())
+      e.descripcion = "Ingresá una descripción";
     if (!editData.fecha?.trim()) e.fecha = "Seleccioná una fecha";
 
     if (editData.gastoCompra === "" || editData.gastoCompra === null) {
@@ -228,15 +242,24 @@ export default function MandadosList() {
 
     // cantidad >= 1 (solo informativa / persistente)
     const qty = Math.floor(Number(editData.cantidad));
-    if (Number.isNaN(qty) || qty < 1) e.cantidad = "Cantidad debe ser un entero ≥ 1";
+    if (Number.isNaN(qty) || qty < 1)
+      e.cantidad = "Cantidad debe ser un entero ≥ 1";
 
-    if (!["efectivo", "transferencia", "pendiente"].includes(editData.metodoPago)) {
+    if (
+      !["efectivo", "transferencia", "pendiente"].includes(editData.metodoPago)
+    ) {
       e.metodoPago = "Seleccioná un método de pago";
     }
 
     setEditErrors(e);
     const has =
-      e.clienteNombre || e.descripcion || e.fecha || e.gastoCompra || e.cobroServicio || e.cantidad || e.metodoPago;
+      e.clienteNombre ||
+      e.descripcion ||
+      e.fecha ||
+      e.gastoCompra ||
+      e.cobroServicio ||
+      e.cantidad ||
+      e.metodoPago;
     return !has;
   }
 
@@ -272,7 +295,10 @@ export default function MandadosList() {
     try {
       updateMandado(editingId, dataToSave);
       if (!navigator.onLine) {
-        showToast("✍️ Cambios guardados offline. Se sincronizan cuando haya internet.", "info");
+        showToast(
+          "✍️ Cambios guardados offline. Se sincronizan cuando haya internet.",
+          "info"
+        );
       } else {
         showToast("Mandado actualizado", "success");
       }
@@ -345,7 +371,11 @@ export default function MandadosList() {
                 ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
                 : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
             } ${totalHoy === 0 ? "opacity-60 cursor-not-allowed" : ""}`}
-            title={totalHoy === 0 ? "Hoy no hay mandados registrados" : "Mostrar solo los mandados de hoy"}
+            title={
+              totalHoy === 0
+                ? "Hoy no hay mandados registrados"
+                : "Mostrar solo los mandados de hoy"
+            }
           >
             {showTodayOnly ? "Solo hoy ✓" : "Solo hoy"}
           </button>
@@ -357,7 +387,9 @@ export default function MandadosList() {
             onChange={(e) => setPageSize(Number(e.target.value))}
           >
             {[5, 10, 20, 50].map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
         </div>
@@ -381,7 +413,9 @@ export default function MandadosList() {
               <div
                 key={m.id}
                 className={`rounded-xl shadow-md border backdrop-blur-sm ${
-                  m.pagado ? "bg-green-50/90 border-green-200" : "bg-yellow-50/90 border-yellow-200"
+                  m.pagado
+                    ? "bg-green-50/90 border-green-200"
+                    : "bg-yellow-50/90 border-yellow-200"
                 } ${esHoy ? "ring-2 ring-blue-300" : ""}`}
               >
                 {/* header */}
@@ -399,9 +433,17 @@ export default function MandadosList() {
                           HOY
                         </span>
                       )}
+
+                      {/* Chip: si fue pagado hoy */}
+                      {m.fechaPago === todayStr && (
+                        <span className="text-[10px] px-2 py-[2px] rounded-full bg-green-600 text-white ml-2">
+                          Pagado hoy
+                        </span>
+                      )}
                     </p>
                     <span className="text-xs text-gray-500 block">
-                      {m.fecha}{m.hora ? ` • ${m.hora}` : ""}
+                      {m.fecha}
+                      {m.hora ? ` • ${m.hora}` : ""}
                     </span>
                   </div>
 
@@ -410,14 +452,18 @@ export default function MandadosList() {
                       className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm"
                       onClick={() => handleOpenEdit(m)}
                     >
-                      <span role="img" aria-label="edit">✏️</span>
+                      <span role="img" aria-label="edit">
+                        ✏️
+                      </span>
                       Editar
                     </button>
                     <button
                       className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-red-100 border border-red-300 text-red-700 hover:bg-red-200 shadow-sm"
                       onClick={() => handleAskDelete(m)}
                     >
-                      <span role="img" aria-label="delete">🗑</span>
+                      <span role="img" aria-label="delete">
+                        🗑
+                      </span>
                       Eliminar
                     </button>
                   </div>
@@ -429,15 +475,21 @@ export default function MandadosList() {
 
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <div className="bg-white rounded-lg border p-2">
-                      <p className="text-[11px] text-gray-500">Total cobrado / a cobrar</p>
-                      <p className="text-base font-semibold text-gray-900">C$ {fmt(totalCobrar)}</p>
+                      <p className="text-[11px] text-gray-500">
+                        Total cobrado / a cobrar
+                      </p>
+                      <p className="text-base font-semibold text-gray-900">
+                        C$ {fmt(totalCobrar)}
+                      </p>
                       <p className="text-[11px] text-gray-500 mt-1">
                         Compra C$ {fmt(gasto)} + Servicio C$ {fmt(fee)}
                       </p>
                     </div>
                     <div className="bg-white rounded-lg border p-2">
                       <p className="text-[11px] text-gray-500">Utilidad</p>
-                      <p className="text-base font-semibold text-gray-900">C$ {fmt(utilidad)}</p>
+                      <p className="text-base font-semibold text-gray-900">
+                        C$ {fmt(utilidad)}
+                      </p>
                       <p className="text-[11px] text-gray-500 mt-1">
                         Cantidad: x{cant}
                       </p>
@@ -452,7 +504,10 @@ export default function MandadosList() {
                     {m.pagado ? (
                       <>
                         <span>✅</span>
-                        <span>Pagado por {m.metodoPago || "—"}</span>
+                        <span>
+                          Pagado por {m.metodoPago || "—"}
+                          {m.fechaPago === todayStr && " • hoy"}
+                        </span>
                       </>
                     ) : (
                       <>
@@ -507,7 +562,10 @@ export default function MandadosList() {
 
       {/* MODAL BORRAR */}
       {deletingId && (
-        <ConfirmDeleteModal onCancel={handleCancelDelete} onConfirm={handleConfirmDelete} />
+        <ConfirmDeleteModal
+          onCancel={handleCancelDelete}
+          onConfirm={handleConfirmDelete}
+        />
       )}
     </div>
   );
@@ -519,7 +577,9 @@ function SearchBar({ value, onChange }) {
   return (
     <div className="w-full max-w-xl flex flex-col items-center">
       <div className="relative w-full">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+          🔍
+        </span>
         <input
           className="w-full rounded-lg border border-gray-300 bg-white/90 pl-8 pr-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Buscar... ej: Yamil, 2025-10-26, efectivo, pendiente, 20, compra, x2"
@@ -538,7 +598,9 @@ function inputClass(base, hasError) {
   return (
     base +
     " " +
-    (hasError ? "border-red-400 focus:ring-red-400" : "border-gray-300 focus:ring-blue-400")
+    (hasError
+      ? "border-red-400 focus:ring-red-400"
+      : "border-gray-300 focus:ring-blue-400")
   );
 }
 
@@ -569,44 +631,72 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
         <div className="grid gap-3 text-sm">
           {/* Cliente */}
           <label className="flex flex-col">
-            <span className="text-gray-600 font-medium">Cliente <span className="text-red-500">*</span></span>
+            <span className="text-gray-600 font-medium">
+              Cliente <span className="text-red-500">*</span>
+            </span>
             <input
-              className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.clienteNombre)}
+              className={inputClass(
+                "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
+                !!errors.clienteNombre
+              )}
               value={data.clienteNombre}
-              onChange={(e) => handleFieldChange("clienteNombre", e.target.value)}
+              onChange={(e) =>
+                handleFieldChange("clienteNombre", e.target.value)
+              }
             />
-            {errors.clienteNombre && <p className="text-xs text-red-500 mt-1">{errors.clienteNombre}</p>}
+            {errors.clienteNombre && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.clienteNombre}
+              </p>
+            )}
           </label>
 
           {/* Descripción */}
           <label className="flex flex-col">
-            <span className="text-gray-600 font-medium">Descripción <span className="text-red-500">*</span></span>
+            <span className="text-gray-600 font-medium">
+              Descripción <span className="text-red-500">*</span>
+            </span>
             <textarea
-              className={inputClass("border rounded-lg px-2 py-1 h-16 resize-none focus:outline-none focus:ring-2 bg-white", !!errors.descripcion)}
+              className={inputClass(
+                "border rounded-lg px-2 py-1 h-16 resize-none focus:outline-none focus:ring-2 bg-white",
+                !!errors.descripcion
+              )}
               value={data.descripcion}
               onChange={(e) => handleFieldChange("descripcion", e.target.value)}
               placeholder="Ej: Compras en súper y panadería"
             />
-            {errors.descripcion && <p className="text-xs text-red-500 mt-1">{errors.descripcion}</p>}
+            {errors.descripcion && (
+              <p className="text-xs text-red-500 mt-1">{errors.descripcion}</p>
+            )}
           </label>
 
           {/* Fecha / Hora */}
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col">
-              <span className="text-gray-600 font-medium">Fecha <span className="text-red-500">*</span></span>
+              <span className="text-gray-600 font-medium">
+                Fecha <span className="text-red-500">*</span>
+              </span>
               <input
                 type="date"
-                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.fecha)}
+                className={inputClass(
+                  "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
+                  !!errors.fecha
+                )}
                 value={data.fecha}
                 onChange={(e) => handleFieldChange("fecha", e.target.value)}
               />
-              {errors.fecha && <p className="text-xs text-red-500 mt-1">{errors.fecha}</p>}
+              {errors.fecha && (
+                <p className="text-xs text-red-500 mt-1">{errors.fecha}</p>
+              )}
             </label>
             <label className="flex flex-col">
               <span className="text-gray-600 font-medium">Hora</span>
               <input
                 type="time"
-                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", false)}
+                className={inputClass(
+                  "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
+                  false
+                )}
                 value={data.hora || ""}
                 onChange={(e) => handleFieldChange("hora", e.target.value)}
               />
@@ -616,29 +706,51 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
           {/* Gasto / Servicio */}
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col">
-              <span className="text-gray-600 font-medium">Gasto compra (C$) <span className="text-red-500">*</span></span>
+              <span className="text-gray-600 font-medium">
+                Gasto compra (C$) <span className="text-red-500">*</span>
+              </span>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.gastoCompra)}
+                className={inputClass(
+                  "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
+                  !!errors.gastoCompra
+                )}
                 value={data.gastoCompra}
-                onChange={(e) => handleFieldChange("gastoCompra", e.target.value)}
+                onChange={(e) =>
+                  handleFieldChange("gastoCompra", e.target.value)
+                }
               />
-              {errors.gastoCompra && <p className="text-xs text-red-500 mt-1">{errors.gastoCompra}</p>}
+              {errors.gastoCompra && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.gastoCompra}
+                </p>
+              )}
             </label>
 
             <label className="flex flex-col">
-              <span className="text-gray-600 font-medium">Cobro servicio (C$) <span className="text-red-500">*</span></span>
+              <span className="text-gray-600 font-medium">
+                Cobro servicio (C$) <span className="text-red-500">*</span>
+              </span>
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
-                className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.cobroServicio)}
+                className={inputClass(
+                  "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
+                  !!errors.cobroServicio
+                )}
                 value={data.cobroServicio}
-                onChange={(e) => handleFieldChange("cobroServicio", e.target.value)}
+                onChange={(e) =>
+                  handleFieldChange("cobroServicio", e.target.value)
+                }
               />
-              {errors.cobroServicio && <p className="text-xs text-red-500 mt-1">{errors.cobroServicio}</p>}
+              {errors.cobroServicio && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.cobroServicio}
+                </p>
+              )}
             </label>
           </div>
 
@@ -647,7 +759,11 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
             <span className="text-gray-600 font-medium">
               Cantidad de mandados <span className="text-red-500">*</span>
             </span>
-            <div className={`flex items-center gap-2 rounded-lg p-2 border ${errors.cantidad ? "border-red-400" : "border-gray-300"}`}>
+            <div
+              className={`flex items-center gap-2 rounded-lg p-2 border ${
+                errors.cantidad ? "border-red-400" : "border-gray-300"
+              }`}
+            >
               <button
                 type="button"
                 onClick={dec}
@@ -662,7 +778,10 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
                 step="1"
                 value={qty}
                 onChange={(e) =>
-                  handleFieldChange("cantidad", Math.max(1, Math.floor(Number(e.target.value || 1))))
+                  handleFieldChange(
+                    "cantidad",
+                    Math.max(1, Math.floor(Number(e.target.value || 1)))
+                  )
                 }
                 className="w-20 text-center rounded-lg p-2 border border-gray-300 focus:outline-none focus:ring-2"
               />
@@ -675,26 +794,37 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
                 +
               </button>
             </div>
-            {errors.cantidad && <p className="text-xs text-red-500 mt-1">{errors.cantidad}</p>}
+            {errors.cantidad && (
+              <p className="text-xs text-red-500 mt-1">{errors.cantidad}</p>
+            )}
           </label>
 
           {/* Preview totales */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg border p-2 bg-gray-50">
               <p className="text-[11px] text-gray-500">Total a cobrar</p>
-              <p className="font-semibold">{Number.isFinite(total) ? `C$ ${total.toFixed(2)}` : "—"}</p>
+              <p className="font-semibold">
+                {Number.isFinite(total) ? `C$ ${total.toFixed(2)}` : "—"}
+              </p>
             </div>
             <div className="rounded-lg border p-2 bg-gray-50">
               <p className="text-[11px] text-gray-500">Utilidad</p>
-              <p className="font-semibold">C$ {toNum(data.cobroServicio).toFixed(2)}</p>
+              <p className="font-semibold">
+                C$ {toNum(data.cobroServicio).toFixed(2)}
+              </p>
             </div>
           </div>
 
           {/* Método de pago */}
           <label className="flex flex-col">
-            <span className="text-gray-600 font-medium">Método de pago <span className="text-red-500">*</span></span>
+            <span className="text-gray-600 font-medium">
+              Método de pago <span className="text-red-500">*</span>
+            </span>
             <select
-              className={inputClass("border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white", !!errors.metodoPago)}
+              className={inputClass(
+                "border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 bg-white",
+                !!errors.metodoPago
+              )}
               value={data.metodoPago}
               onChange={(e) => handleFieldChange("metodoPago", e.target.value)}
             >
@@ -702,7 +832,9 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
               <option value="transferencia">Transferencia</option>
               <option value="pendiente">Pendiente</option>
             </select>
-            {errors.metodoPago && <p className="text-xs text-red-500 mt-1">{errors.metodoPago}</p>}
+            {errors.metodoPago && (
+              <p className="text-xs text-red-500 mt-1">{errors.metodoPago}</p>
+            )}
           </label>
 
           {/* Pagado */}
@@ -712,7 +844,11 @@ function EditModal({ data, setData, errors, setErrors, onClose, onSave }) {
               checked={data.pagado}
               onChange={(e) => handleFieldChange("pagado", e.target.checked)}
               disabled={data.metodoPago === "pendiente"}
-              title={data.metodoPago === "pendiente" ? "Si es pendiente no puede marcarse como pagado" : ""}
+              title={
+                data.metodoPago === "pendiente"
+                  ? "Si es pendiente no puede marcarse como pagado"
+                  : ""
+              }
             />
             <span className="text-sm font-medium">¿Pagado?</span>
           </label>
@@ -748,8 +884,12 @@ function ConfirmDeleteModal({ onCancel, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-xs p-5">
-        <h2 className="text-lg font-semibold text-gray-800">¿Eliminar este mandado?</h2>
-        <p className="text-sm text-gray-600 mt-2">Esta acción no se puede deshacer.</p>
+        <h2 className="text-lg font-semibold text-gray-800">
+          ¿Eliminar este mandado?
+        </h2>
+        <p className="text-sm text-gray-600 mt-2">
+          Esta acción no se puede deshacer.
+        </p>
 
         <div className="flex justify-end gap-2 mt-5">
           <button

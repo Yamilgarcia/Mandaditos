@@ -170,20 +170,31 @@ export function useMandados() {
   // ✅ Marcar pagado
   // ✅ Marcar pagado (corrige flujos)
 // ✅ Marcar pagado (corrige flujos + FECHA DE PAGO)
-function markAsPaid(localId, metodoPagoReal = "efectivo") {
+// ✅ Reemplazar la implementación de markAsPaid por la siguiente
+function markAsPaid(localId, metodoPagoReal = "efectivo", fechaPagoParam = null) {
   const all = getMandados();
   const current = all.find((m) => m.id === localId);
   if (!current) return;
 
-  const hoy = new Date();
+  // fechaPago: si el caller la envía, la usamos; si no, la calculamos en yyyy-mm-dd
   const pad2 = (x) => String(x).padStart(2, "0");
-  const fechaPago = `${hoy.getFullYear()}-${pad2(hoy.getMonth() + 1)}-${pad2(hoy.getDate())}`;
-  const horaPago = `${pad2(hoy.getHours())}:${pad2(hoy.getMinutes())}`;
+  let fechaPago = fechaPagoParam;
+  let horaPago = null;
+
+  if (!fechaPago) {
+    const hoy = new Date();
+    fechaPago = `${hoy.getFullYear()}-${pad2(hoy.getMonth() + 1)}-${pad2(hoy.getDate())}`;
+    horaPago = `${pad2(hoy.getHours())}:${pad2(hoy.getMinutes())}`;
+  } else {
+    // si nos pasan fechaPago, igual calculamos horaPago local (útil)
+    const ahora = new Date();
+    horaPago = `${pad2(ahora.getHours())}:${pad2(ahora.getMinutes())}`;
+  }
 
   const gasto = Number(current.gastoCompra || 0);
   const fee = Number(current.cobroServicio || 0);
   const totalCobrar =
-    current.totalCobrar !== undefined
+    current.totalCobrar !== undefined && current.totalCobrar !== null
       ? Number(current.totalCobrar)
       : gasto + fee;
 
@@ -193,37 +204,51 @@ function markAsPaid(localId, metodoPagoReal = "efectivo") {
   let porCobrar = 0;
 
   if (metodoPagoReal === "efectivo") {
-    // En caja: ya saliste -gasto al comprar; al cobrar entra total, neto del día = fee
     cajaDelta = -gasto + totalCobrar;
     bancoDelta = 0;
     porCobrar = 0;
   } else if (metodoPagoReal === "transferencia") {
-    // En caja queda -gasto; el cobro entra al banco
     cajaDelta = -gasto;
     bancoDelta = totalCobrar;
     porCobrar = 0;
   } else {
-    // fallback (no debería usarse aquí)
+    // fallback (no esperado)
     cajaDelta = -gasto;
     bancoDelta = 0;
     porCobrar = totalCobrar;
   }
 
+  // atributos a actualizar
   const updates = {
     pagado: true,
     metodoPago: metodoPagoReal,
-    fechaPago,             // 👈 CLAVE para que el resumen lo sume HOY
-    horaPago,              // (opcional pero útil)
+    fechaPago, // clave para que el resumen cuente el pago en "Hoy"
+    horaPago,
     cajaDelta,
     bancoDelta,
     porCobrar,
-    ...(current.remoteId ? { needsUpdate: true } : {}),
   };
 
+  // flags de sincronización:
+  if (current.remoteId) {
+    updates.needsUpdate = true;
+  } else {
+    updates.needsUpload = true;
+  }
+
+  // aplica la actualización local
   const afterUpdate = updateMandadoLocalById(localId, updates);
+
+  // Actualiza state (updateMandadoLocalById, en tu código, devuelve la lista completa)
   setMandadosState(afterUpdate);
+
+  // Intenta sincronizar
   fullSync();
+
+  // opcional: devolver el mandado actualizado
+  return afterUpdate.find((x) => x.id === localId);
 }
+
 
   // ✏️ Editar (offline + online)
   function updateMandado(localId, updates) {
