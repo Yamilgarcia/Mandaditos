@@ -45,6 +45,23 @@ export default function ResumenDiaCard() {
     [mandados, hoy]
   );
 
+  // --- Mandados que tienen fechaPago === hoy (marcados como pagados HOY) ---
+  // Nos interesa separarlos por si fueron creados hoy o en días anteriores.
+  const cobradosConFechaPagoHoy = useMemo(
+    () => (mandados || []).filter((m) => m.pagado && m.fechaPago === hoy),
+    [mandados, hoy]
+  );
+
+  const cobradosHoyDesdeHoy = useMemo(
+    () => cobradosConFechaPagoHoy.filter((m) => m.fecha === hoy),
+    [cobradosConFechaPagoHoy]
+  );
+
+  const cobradosHoyDesdeAntiguos = useMemo(
+    () => cobradosConFechaPagoHoy.filter((m) => m.fecha !== hoy),
+    [cobradosConFechaPagoHoy]
+  );
+
   // Pendientes del día (solo informativo)
   const pendientesHoy = useMemo(
     () => mandadosHoy.filter((m) => !m.pagado),
@@ -65,13 +82,13 @@ export default function ResumenDiaCard() {
     [mandadosHoy]
   );
 
-  // ✅ Utilidad PAGADA hoy (usa fechaPago)
+  // ✅ Utilidad PAGADA hoy (usa fechaPago o fallback)
   const utilidadPagada = useMemo(
     () => cobradosHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
     [cobradosHoy]
   );
 
-  // ✅ Total cobrado HOY (reembolso + fee total) por fechaPago
+  // ✅ Total cobrado HOY (reembolso + fee total) por fechaPago / fallback
   const ingresadoHoy = useMemo(
     () =>
       cobradosHoy.reduce(
@@ -79,6 +96,50 @@ export default function ResumenDiaCard() {
         0
       ),
     [cobradosHoy]
+  );
+
+  // === Totales específicos por origen de los cobros marcados HOY ===
+  const utilidadCobradosHoyDesdeAntiguos = useMemo(
+    () =>
+      cobradosHoyDesdeAntiguos.reduce(
+        (acc, m) => acc + toNum(m.cobroServicio),
+        0
+      ),
+    [cobradosHoyDesdeAntiguos]
+  );
+
+  const totalCobradosHoyDesdeAntiguos = useMemo(
+    () =>
+      cobradosHoyDesdeAntiguos.reduce(
+        (acc, m) => acc + toNum(m.gastoCompra) + toNum(m.cobroServicio),
+        0
+      ),
+    [cobradosHoyDesdeAntiguos]
+  );
+
+  const utilidadCobradosHoyDesdeHoy = useMemo(
+    () => cobradosHoyDesdeHoy.reduce((acc, m) => acc + toNum(m.cobroServicio), 0),
+    [cobradosHoyDesdeHoy]
+  );
+
+  const totalCobradosHoyDesdeHoy = useMemo(
+    () =>
+      cobradosHoyDesdeHoy.reduce(
+        (acc, m) => acc + toNum(m.gastoCompra) + toNum(m.cobroServicio),
+        0
+      ),
+    [cobradosHoyDesdeHoy]
+  );
+
+  // Total combinado: todo lo que hoy se cobró y provenía de pendientes (antiguos + del propio día)
+  const utilidadCobradosHoyDesdePendientes = useMemo(
+    () => utilidadCobradosHoyDesdeAntiguos + utilidadCobradosHoyDesdeHoy,
+    [utilidadCobradosHoyDesdeAntiguos, utilidadCobradosHoyDesdeHoy]
+  );
+
+  const totalCobradosHoyDesdePendientes = useMemo(
+    () => totalCobradosHoyDesdeAntiguos + totalCobradosHoyDesdeHoy,
+    [totalCobradosHoyDesdeAntiguos, totalCobradosHoyDesdeHoy]
   );
 
   // Pendiente cobrar (UTILIDAD) — GLOBAL
@@ -93,7 +154,7 @@ export default function ResumenDiaCard() {
     [pendientesHoy]
   );
 
-  // ⚠️ NUEVO: Pendiente cobrar (TOTAL: compra + servicio)
+  // ⚠️ Pendiente cobrar (TOTAL: compra + servicio)
   const pendienteTotalGlobal = useMemo(
     () =>
       pendientesGlobal.reduce(
@@ -136,8 +197,6 @@ export default function ResumenDiaCard() {
   const cajaInicial = toNum(apertura?.cajaInicial || 0);
 
   // ✅ Caja esperada = Caja inicial - compras de HOY + todo lo cobrado HOY - gastos HOY
-  //  - comprasHoy: gastoCompra de mandados de hoy (pagados o pendientes)
-  //  - ingresadoHoy: gastoCompra + cobroServicio de mandados pagados HOY (aunque sean de días viejos)
   const cajaEsperada = cajaInicial - comprasHoy + ingresadoHoy - totalGastado;
 
   const colorClase = restante >= 0 ? "bg-green-100" : "bg-red-100";
@@ -160,19 +219,47 @@ export default function ResumenDiaCard() {
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Ganado (utilidad pagada)</p>
           <p className="text-lg font-bold text-gray-800">C$ {fmt(utilidadPagada)}</p>
-          <p className="text-[11px] text-gray-500 mt-1">
-            Ingresado hoy (info): C$ {fmt(ingresadoHoy)}
+          <p className="text-[11px] text-gray-500 mt-1">Ingresado hoy (info): C$ {fmt(ingresadoHoy)}</p>
+        </div>
+
+        {/* TARJETA: Todo lo cobrado HOY que venía de pendientes (desglose) */}
+        {/* TARJETA: Todo lo cobrado HOY (Desglosado: Antiguos vs Hoy) */}
+        <div className="bg-white rounded-xl shadow p-3">
+          <p className="text-xs text-gray-500 font-medium">Cobrado hoy (Total)</p>
+          
+          {/* 1. El número grande es la SUMA TOTAL (Antiguos + Hoy) */}
+          <p className="text-lg font-bold text-emerald-800">
+            C$ {fmt(totalCobradosHoyDesdePendientes)}
           </p>
+          
+          {/* 2. Desglose detallado: Antiguos vs Hoy, cada uno con su Total y Utilidad */}
+          <div className="mt-2 flex flex-col gap-1 border-t pt-2">
+            
+             {/* Fila: Antiguos */}
+             <div className="flex justify-between items-center text-[11px]">
+               <span className="text-gray-600">📅 Antiguos:</span>
+               <span>
+                 <span className="font-medium">C$ {fmt(totalCobradosHoyDesdeAntiguos)}</span>
+                 <span className="text-emerald-600 ml-1 font-semibold text-[10px]">(Util: {fmt(utilidadCobradosHoyDesdeAntiguos)})</span>
+               </span>
+             </div>
+
+             {/* Fila: De Hoy */}
+             <div className="flex justify-between items-center text-[11px]">
+               <span className="text-gray-600">🔵 De hoy:</span>
+               <span>
+                 <span className="font-medium">C$ {fmt(totalCobradosHoyDesdeHoy)}</span>
+                 <span className="text-emerald-600 ml-1 font-semibold text-[10px]">(Util: {fmt(utilidadCobradosHoyDesdeHoy)})</span>
+               </span>
+             </div>
+
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow p-3">
           <p className="text-xs text-gray-500 font-medium">Pendiente cobrar (utilidad)</p>
-          <p className="text-lg font-bold text-yellow-600">
-            C$ {fmt(pendienteUtilidadGlobal)}
-          </p>
-          <p className="text-[11px] text-gray-500 mt-1">
-            Pendientes de hoy: C$ {fmt(pendienteUtilidadHoy)}
-          </p>
+          <p className="text-lg font-bold text-yellow-600">C$ {fmt(pendienteUtilidadGlobal)}</p>
+          <p className="text-[11px] text-gray-500 mt-1">Pendientes de hoy: C$ {fmt(pendienteUtilidadHoy)}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow p-3">
@@ -185,17 +272,11 @@ export default function ResumenDiaCard() {
           <p className="text-lg font-bold text-gray-800">C$ {fmt(restante)}</p>
         </div>
 
-        {/* ⚠️ NUEVA TARJETA: Pendiente cobrar (TOTAL) */}
+        {/* Pendiente cobrar (TOTAL) */}
         <div className="bg-white rounded-xl shadow p-3 col-span-2">
-          <p className="text-xs text-gray-500 font-medium">
-            Pendiente cobrar (total: compra + servicio)
-          </p>
-          <p className="text-lg font-bold text-orange-600">
-            C$ {fmt(pendienteTotalGlobal)}
-          </p>
-          <p className="text-[11px] text-gray-500 mt-1">
-            Pendientes de hoy (total): C$ {fmt(pendienteTotalHoy)}
-          </p>
+          <p className="text-xs text-gray-500 font-medium">Pendiente cobrar (total: compra + servicio)</p>
+          <p className="text-lg font-bold text-orange-600">C$ {fmt(pendienteTotalGlobal)}</p>
+          <p className="text-[11px] text-gray-500 mt-1">Pendientes de hoy (total): C$ {fmt(pendienteTotalHoy)}</p>
         </div>
       </div>
 
@@ -212,9 +293,7 @@ export default function ResumenDiaCard() {
         </div>
       </div>
 
-      <p className="text-center text-gray-600 text-sm mt-4">
-        Mandados hechos hoy: {totalMandadosHoy}
-      </p>
+      <p className="text-center text-gray-600 text-sm mt-4">Mandados hechos hoy: {totalMandadosHoy}</p>
     </div>
   );
 }

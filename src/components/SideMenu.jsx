@@ -8,7 +8,8 @@ import {
   CalendarCheck,
   TrendingUp,
   CreditCard,
-  BarChart2, // Importado para el resumen diario
+  BarChart2,
+  Calculator, // <--- Importamos el ícono de Calculadora
 } from "lucide-react";
 
 export default function SideMenu({ onClose }) {
@@ -86,7 +87,7 @@ export default function SideMenu({ onClose }) {
             Apertura del Día
           </Link>
           
-          {/* Resumen del Día (Antiguo), ruta: /resumen - AÑADIDO */}
+          {/* Resumen del Día (Antiguo), ruta: /resumen */}
           <Link
             to="/resumen"
             onClick={onClose}
@@ -104,6 +105,17 @@ export default function SideMenu({ onClose }) {
           >
             <TrendingUp size={20} className="text-red-600" />
             Resumen de los días (V2)
+          </Link>
+
+          {/* Calculadora de Cierre, ruta: /CalculadoraCierre-v2 */}
+          {/* AQUÍ ESTÁ EL NUEVO ÍCONO Y COLOR */}
+          <Link
+            to="/CalculadoraCierre-v2"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
+          >
+            <Calculator size={20} className="text-teal-600" /> 
+            Calculadora de Cierre
           </Link>
 
           {/* Gastos personales, ruta: /gastos */}
@@ -125,6 +137,7 @@ export default function SideMenu({ onClose }) {
             <ClipboardList size={20} className="text-purple-600" />
             Listado de gastos
           </Link>
+
         </nav>
 
         {/* Footer */}
