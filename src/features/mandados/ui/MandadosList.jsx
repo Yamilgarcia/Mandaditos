@@ -555,16 +555,7 @@ export default function MandadosList() {
         )}
       </div>
 
-      {/* FLOAT ACTION BUTTON */}
-      <div className="fixed right-4 bottom-6 z-40">
-        <button
-          onClick={() => openCreate()}
-          className="w-14 h-14 rounded-full bg-blue-600 shadow-lg flex items-center justify-center text-white text-xl hover:bg-blue-700 transition-colors"
-          aria-label="Nuevo mandado"
-        >
-          +
-        </button>
-      </div>
+    
 
       {/* DELETE CONFIRM - Sin AnimatePresence */}
       {deletingId && (

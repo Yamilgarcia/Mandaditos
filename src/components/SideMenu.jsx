@@ -1,92 +1,129 @@
 import { Link } from "react-router-dom";
+import {
+  X,
+  PlusCircle,
+  ListTodo,
+  Wallet,
+  ClipboardList,
+  CalendarCheck,
+  TrendingUp,
+  CreditCard,
+} from "lucide-react";
 
 export default function SideMenu({ onClose }) {
+  // El ancho del menú es w-64, lo que es 256px
   return (
     <>
-      {/* fondo oscuro */}
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+      {/* Fondo oscuro - cubre toda la pantalla y tiene el z-index más alto */}
+      <div
+        className="fixed inset-0 bg-black/50 z-[1010] transition-opacity duration-300"
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
-      {/* panel lateral */}
-      <aside className="fixed top-0 left-0 h-full w-64 bg-white shadow-xl p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-gray-800">Menú</h2>
+      {/* Panel lateral - Diseño limpio, color blanco y sombra profunda */}
+      <aside className="fixed top-0 left-0 h-full w-64 bg-white shadow-2xl p-5 flex flex-col z-[1010] transform transition-transform duration-300 ease-out">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-xl font-extrabold text-blue-600">Mandaditos App</h2>
           <button
-            className="text-gray-500 hover:text-gray-800 text-sm border rounded px-2 py-1"
+            className="p-2 rounded-full text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
             onClick={onClose}
+            aria-label="Cerrar menú"
           >
-            Cerrar
+            <X size={20} />
           </button>
         </div>
 
-        <nav className="flex flex-col gap-3">
+        <nav className="flex flex-col gap-1.5 overflow-y-auto flex-1">
+          {/* Nuevo Mandado - Botón destacado, ruta: / */}
           <Link
             to="/"
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 bg-blue-600 text-white font-semibold shadow-md hover:bg-blue-700 transition-colors"
           >
-            ➕ Nuevo Mandado
+            <PlusCircle size={20} />
+            Nuevo Mandado
           </Link>
 
+          {/* === Sección Gestión de Mandados === */}
+          <div className="text-xs text-gray-500 font-semibold mt-4 mb-1 px-4 border-b pb-1">
+            Gestión de Mandados
+          </div>
+
+          {/* Lista Rápida, ruta: /historial */}
           <Link
-            to="/resumen"
+            to="/historial" 
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 font-medium transition-colors"
           >
-            📊 Resumen del Día
+            <ListTodo size={20} className="text-blue-500" />
+            Historial de Mandados
           </Link>
-
-          <Link
-            to="/historial"
-            onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
-          >
-            📜 Historial / Pendientes
-          </Link>
-
+          
+          {/* Pendientes de Pago, ruta: /pendientes */}
           <Link
             to="/pendientes"
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 font-medium transition-colors"
           >
-            💸 Pendientes de Pago
+            <CreditCard size={20} className="text-yellow-600" />
+            Pendientes de Pago
           </Link>
 
+          {/* === Sección Finanzas y Reportes === */}
+          <div className="text-xs text-gray-500 font-semibold mt-4 mb-1 px-4 border-b pb-1">
+            Finanzas y Reportes
+          </div>
+
+          {/* Gastos personales, ruta: /gastos */}
           <Link
             to="/gastos"
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
           >
-            💵 Gastos personales
+            <Wallet size={20} className="text-green-600" />
+            Gastos personales
           </Link>
-
+          
+          {/* Listado de gastos, ruta: /GastosList */}
           <Link
             to="/GastosList"
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
           >
-            💵 Listado de gastos
+            <ClipboardList size={20} className="text-purple-600" />
+            Listado de gastos
           </Link>
-
+          
+          {/* Apertura del Día, ruta: /apertura */}
           <Link
             to="/apertura"
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
           >
-            🧾 Apertura del Día
+            <CalendarCheck size={20} className="text-indigo-600" />
+            Apertura del Día
           </Link>
-
+          
+          {/* Resumen de los días, ruta: /resumen-v2 */}
           <Link
             to="/resumen-v2"
             onClick={onClose}
-            className="block rounded-lg px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium"
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
           >
-            📈 Resumen de los dias
+            <TrendingUp size={20} className="text-red-600" />
+            Resumen de los días
           </Link>
         </nav>
 
-        <div className="mt-auto text-xs text-gray-400">
-          <p>Modo Offline listo ✅</p>
-          <p className="mt-1">v0.2</p>
+        {/* Footer */}
+        <div className="mt-6 pt-3 text-xs text-gray-500 border-t">
+          <p className="font-medium">Estado:</p>
+          <p className="mt-1 flex items-center gap-1">
+            <span className="text-green-500">●</span>
+            Modo Offline listo
+          </p>
+          <p className="mt-1">Versión v0.2</p>
         </div>
       </aside>
     </>
