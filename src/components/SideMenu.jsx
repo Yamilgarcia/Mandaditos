@@ -8,6 +8,7 @@ import {
   CalendarCheck,
   TrendingUp,
   CreditCard,
+  BarChart2, // Importado para el resumen diario
 } from "lucide-react";
 
 export default function SideMenu({ onClose }) {
@@ -50,7 +51,7 @@ export default function SideMenu({ onClose }) {
             Gestión de Mandados
           </div>
 
-          {/* Lista Rápida, ruta: /historial */}
+          {/* Historial de Mandados, ruta: /historial */}
           <Link
             to="/historial" 
             onClick={onClose}
@@ -75,6 +76,36 @@ export default function SideMenu({ onClose }) {
             Finanzas y Reportes
           </div>
 
+          {/* Apertura del Día, ruta: /apertura */}
+          <Link
+            to="/apertura"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
+          >
+            <CalendarCheck size={20} className="text-indigo-600" />
+            Apertura del Día
+          </Link>
+          
+          {/* Resumen del Día (Antiguo), ruta: /resumen - AÑADIDO */}
+          <Link
+            to="/resumen"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
+          >
+            <BarChart2 size={20} className="text-orange-600" />
+            Resumen del Día
+          </Link>
+
+          {/* Resumen de los días (V2), ruta: /resumen-v2 */}
+          <Link
+            to="/resumen-v2"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
+          >
+            <TrendingUp size={20} className="text-red-600" />
+            Resumen de los días (V2)
+          </Link>
+
           {/* Gastos personales, ruta: /gastos */}
           <Link
             to="/gastos"
@@ -93,26 +124,6 @@ export default function SideMenu({ onClose }) {
           >
             <ClipboardList size={20} className="text-purple-600" />
             Listado de gastos
-          </Link>
-          
-          {/* Apertura del Día, ruta: /apertura */}
-          <Link
-            to="/apertura"
-            onClick={onClose}
-            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
-          >
-            <CalendarCheck size={20} className="text-indigo-600" />
-            Apertura del Día
-          </Link>
-          
-          {/* Resumen de los días, ruta: /resumen-v2 */}
-          <Link
-            to="/resumen-v2"
-            onClick={onClose}
-            className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-blue-50/70 text-gray-800 transition-colors"
-          >
-            <TrendingUp size={20} className="text-red-600" />
-            Resumen de los días
           </Link>
         </nav>
 

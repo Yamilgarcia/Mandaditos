@@ -221,22 +221,7 @@ export default function MandadosList() {
     setEditErrors({});
   }
 
-  function openCreate() {
-    setEditingId("__new");
-    setEditData({
-      clienteNombre: "",
-      descripcion: "",
-      fecha: todayStr,
-      hora: "",
-      gastoCompra: "",
-      cobroServicio: "20",
-      cantidad: 1,
-      metodoPago: "efectivo",
-      pagado: true,
-      notas: "",
-    });
-    setEditErrors({});
-  }
+ 
 
   function askDelete(m) {
     setDeletingId(m.id);
